@@ -98,3 +98,12 @@ async def get_markbook_classes(db: Session = Depends(get_db)):
     
     return result
 
+import uvicorn
+
+if __name__ == "__main__":
+    uvicorn.run(
+        "app.main:app",
+        host="0.0.0.0",
+        port=8080,
+        reload=False
+    )
