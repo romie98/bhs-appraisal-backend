@@ -35,14 +35,14 @@ app = FastAPI(
 
 # CORS middleware
 origins = [
-    "https://bhs-appraisal.vercel.app",
+    "https://bhs-appraisal-frontend.vercel.app",
     "http://localhost:5173",
     "*"
 ]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -75,6 +75,11 @@ async def root():
 async def health():
     """Health check endpoint"""
     return {"status": "healthy"}
+
+
+@app.get("/ping")
+def ping():
+    return {"status": "ok"}
 
 
 # Helper endpoint for markbook classes

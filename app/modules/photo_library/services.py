@@ -1,5 +1,6 @@
 """Photo Evidence Library service functions (file handling + OCR)"""
 import logging
+import os
 from pathlib import Path
 
 from PIL import Image
@@ -7,6 +8,9 @@ from PIL import Image
 logger = logging.getLogger(__name__)
 
 # Base upload directory for photos
+UPLOAD_DIR = "uploads"
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+
 PHOTO_UPLOAD_DIR = Path("uploads/photos")
 PHOTO_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -28,6 +32,7 @@ def save_photo_file(file_content: bytes, filename: str, teacher_id: str) -> str:
 
         return str(file_path)
     except Exception as e:
+        print(f"UPLOAD ERROR: {e}")
         logger.error(f"Error saving photo file {filename}: {e}", exc_info=True)
         raise Exception(f"Failed to save photo file: {e}")
 

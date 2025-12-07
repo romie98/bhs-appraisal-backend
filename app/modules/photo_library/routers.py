@@ -109,11 +109,12 @@ async def upload_photo_evidence(
     except HTTPException:
         raise
     except Exception as e:
+        print(f"UPLOAD ERROR: {e}")
         db.rollback()
         logger.error(f"Error uploading photo evidence: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error uploading photo evidence: {e}",
+            detail=str(e),
         )
 
 
