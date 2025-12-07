@@ -13,7 +13,7 @@ class LessonPlanBase(BaseModel):
 
 class LessonPlanCreate(LessonPlanBase):
     """Schema for creating a lesson plan from text"""
-    teacher_id: str = Field(..., description="UUID of the teacher")
+    # teacher_id is now obtained from authenticated user, not from request
 
 
 class LessonPlanUpdate(BaseModel):

@@ -4,6 +4,8 @@ from sqlalchemy.orm import Session
 from typing import List
 from uuid import UUID
 from app.core.database import get_db
+from app.modules.auth.models import User
+from app.services.auth_dependency import get_current_user
 from app.modules.students.models import Student
 from app.modules.students.schemas import (
     StudentCreate,
@@ -16,6 +18,7 @@ router = APIRouter()
 
 @router.get("/", response_model=List[StudentResponse])
 async def get_students(
+    current_user: User = Depends(get_current_user),
     grade: str = None,
     skip: int = 0,
     limit: int = 100,
@@ -32,7 +35,11 @@ async def get_students(
 
 
 @router.get("/{id}", response_model=StudentResponse)
-async def get_student(id: UUID, db: Session = Depends(get_db)):
+async def get_student(
+    id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
     """Get a student by ID"""
     student = db.query(Student).filter(Student.id == str(id)).first()
     

@@ -6,6 +6,8 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from uuid import UUID
 from app.core.database import get_db
+from app.modules.auth.models import User
+from app.services.auth_dependency import get_current_user
 from app.modules.lesson_plans.models import LessonPlan
 from app.modules.lesson_plans.schemas import (
     LessonPlanCreate,
@@ -30,7 +32,7 @@ router = APIRouter()
 async def upload_lesson_plan(
     file: UploadFile = File(...),
     title: str = Form(...),
-    teacher_id: str = Form(...),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -51,8 +53,8 @@ async def upload_lesson_plan(
         # Read file content
         file_content = await file.read()
         
-        # Save file to disk
-        file_path = save_uploaded_file(file_content, file.filename, teacher_id)
+        # Save file to disk using current user's ID
+        file_path = save_uploaded_file(file_content, file.filename, current_user.id)
         
         # Extract text from file
         content_text = extract_text_from_file(file_path, file_ext)
@@ -66,7 +68,7 @@ async def upload_lesson_plan(
         # Create lesson plan record
         db_lesson_plan = LessonPlan(
             id=str(uuid.uuid4()),
-            teacher_id=teacher_id,
+            teacher_id=current_user.id,
             title=title,
             content_text=content_text,
             file_path=file_path
@@ -76,7 +78,7 @@ async def upload_lesson_plan(
         db.commit()
         db.refresh(db_lesson_plan)
         
-        logger.info(f"Lesson plan uploaded: {db_lesson_plan.id} by teacher {teacher_id}")
+        logger.info(f"Lesson plan uploaded: {db_lesson_plan.id} by teacher {current_user.id}")
         
         return db_lesson_plan
     
@@ -94,6 +96,7 @@ async def upload_lesson_plan(
 @router.post("/create-text", response_model=LessonPlanResponse, status_code=status.HTTP_201_CREATED)
 async def create_lesson_plan_from_text(
     lesson_plan: LessonPlanCreate,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -103,7 +106,7 @@ async def create_lesson_plan_from_text(
     try:
         db_lesson_plan = LessonPlan(
             id=str(uuid.uuid4()),
-            teacher_id=lesson_plan.teacher_id,
+            teacher_id=current_user.id,
             title=lesson_plan.title,
             content_text=lesson_plan.content_text,
             file_path=None
@@ -113,7 +116,7 @@ async def create_lesson_plan_from_text(
         db.commit()
         db.refresh(db_lesson_plan)
         
-        logger.info(f"Lesson plan created from text: {db_lesson_plan.id} by teacher {lesson_plan.teacher_id}")
+        logger.info(f"Lesson plan created from text: {db_lesson_plan.id} by teacher {current_user.id}")
         
         return db_lesson_plan
     
@@ -128,20 +131,16 @@ async def create_lesson_plan_from_text(
 
 @router.get("/", response_model=List[LessonPlanResponse])
 async def list_lesson_plans(
-    teacher_id: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db)
 ):
     """
-    List lesson plans, optionally filtered by teacher_id.
-    If teacher_id is not provided, returns all lesson plans.
+    List lesson plans for the current authenticated user.
     """
     try:
-        query = db.query(LessonPlan)
-        
-        if teacher_id:
-            query = query.filter(LessonPlan.teacher_id == teacher_id)
+        query = db.query(LessonPlan).filter(LessonPlan.teacher_id == current_user.id)
         
         lesson_plans = query.order_by(LessonPlan.created_at.desc()).offset(skip).limit(limit).all()
         
@@ -158,13 +157,18 @@ async def list_lesson_plans(
 @router.get("/{id}", response_model=LessonPlanWithEvidence)
 async def get_lesson_plan(
     id: UUID,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
     Get a lesson plan by ID with any existing extracted evidence.
+    Only returns lesson plans belonging to the current user.
     """
     try:
-        lesson_plan = db.query(LessonPlan).filter(LessonPlan.id == str(id)).first()
+        lesson_plan = db.query(LessonPlan).filter(
+            LessonPlan.id == str(id),
+            LessonPlan.teacher_id == current_user.id
+        ).first()
         
         if not lesson_plan:
             raise HTTPException(
@@ -215,6 +219,7 @@ async def get_lesson_plan(
 @router.post("/{id}/extract-evidence", response_model=LessonPlanWithEvidence)
 async def extract_evidence_from_lesson_plan(
     id: UUID,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -223,8 +228,11 @@ async def extract_evidence_from_lesson_plan(
     and save evidence to the lesson_evidence table.
     """
     try:
-        # Get lesson plan
-        lesson_plan = db.query(LessonPlan).filter(LessonPlan.id == str(id)).first()
+        # Get lesson plan (only if it belongs to current user)
+        lesson_plan = db.query(LessonPlan).filter(
+            LessonPlan.id == str(id),
+            LessonPlan.teacher_id == current_user.id
+        ).first()
         
         if not lesson_plan:
             raise HTTPException(
@@ -275,13 +283,18 @@ async def extract_evidence_from_lesson_plan(
 async def update_lesson_plan(
     id: UUID,
     lesson_plan_update: LessonPlanUpdate,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
     Update a lesson plan.
+    Only allows updating lesson plans belonging to the current user.
     """
     try:
-        db_lesson_plan = db.query(LessonPlan).filter(LessonPlan.id == str(id)).first()
+        db_lesson_plan = db.query(LessonPlan).filter(
+            LessonPlan.id == str(id),
+            LessonPlan.teacher_id == current_user.id
+        ).first()
         
         if not db_lesson_plan:
             raise HTTPException(
@@ -313,13 +326,18 @@ async def update_lesson_plan(
 @router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_lesson_plan(
     id: UUID,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
     Delete a lesson plan and its associated evidence.
+    Only allows deleting lesson plans belonging to the current user.
     """
     try:
-        db_lesson_plan = db.query(LessonPlan).filter(LessonPlan.id == str(id)).first()
+        db_lesson_plan = db.query(LessonPlan).filter(
+            LessonPlan.id == str(id),
+            LessonPlan.teacher_id == current_user.id
+        ).first()
         
         if not db_lesson_plan:
             raise HTTPException(

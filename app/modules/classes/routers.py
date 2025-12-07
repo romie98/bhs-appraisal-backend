@@ -5,6 +5,8 @@ from sqlalchemy import func, select
 from typing import List
 from uuid import UUID
 from app.core.database import get_db
+from app.modules.auth.models import User
+from app.services.auth_dependency import get_current_user
 from app.modules.classes.models import Class, class_students
 from app.modules.students.models import Student
 from app.modules.classes.schemas import (

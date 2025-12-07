@@ -25,10 +25,10 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 
-@router.post("/signup", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
-def signup(user_data: UserSignup, db: Session = Depends(get_db)):
+@router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
+def register(user_data: UserSignup, db: Session = Depends(get_db)):
     """
-    Create a new user account with email and password.
+    Create a new user account with full name, email and password.
     
     Returns:
         Access token for the newly created user
@@ -44,6 +44,7 @@ def signup(user_data: UserSignup, db: Session = Depends(get_db)):
     # Create new user
     try:
         new_user = User(
+            full_name=user_data.full_name,
             email=user_data.email,
             password_hash=hash_password(user_data.password)
         )
@@ -51,10 +52,10 @@ def signup(user_data: UserSignup, db: Session = Depends(get_db)):
         db.commit()
         db.refresh(new_user)
         
-        logger.info(f"New user signed up: {user_data.email}")
+        logger.info(f"New user registered: {user_data.email}")
         
-        # Create and return access token
-        token = create_access_token({"sub": user_data.email})
+        # Create and return access token with user.id
+        token = create_access_token({"sub": new_user.id})
         return TokenResponse(access_token=token)
     
     except Exception as e:
@@ -105,8 +106,8 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
     
     logger.info(f"User logged in: {user.email}")
     
-    # Create and return access token
-    token = create_access_token({"sub": user.email})
+    # Create and return access token with user.id
+    token = create_access_token({"sub": user.id})
     return TokenResponse(access_token=token)
 
 
@@ -145,8 +146,8 @@ def login_json(credentials: UserLogin, db: Session = Depends(get_db)):
     
     logger.info(f"User logged in: {user.email}")
     
-    # Create and return access token
-    token = create_access_token({"sub": user.email})
+    # Create and return access token with user.id
+    token = create_access_token({"sub": user.id})
     return TokenResponse(access_token=token)
 
 
@@ -236,9 +237,9 @@ def login_with_google(google_data: GoogleLogin, db: Session = Depends(get_db)):
             db.refresh(user)
         logger.info(f"User logged in via Google: {email}")
     
-    # Create and return access token
-    token = create_access_token({"sub": email})
-    return TokenResponse(access_token=token)
+        # Create and return access token with user.id
+        token = create_access_token({"sub": user.id})
+        return TokenResponse(access_token=token)
 
 
 @router.get("/me", response_model=UserResponse)
@@ -250,6 +251,7 @@ def get_current_user_info(user: User = Depends(get_current_user)):
     """
     return UserResponse(
         id=user.id,
+        full_name=user.full_name,
         email=user.email,
         created_at=user.created_at
     )

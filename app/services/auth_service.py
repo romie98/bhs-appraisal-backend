@@ -29,7 +29,7 @@ def create_access_token(data: dict, expires_minutes: int = None) -> str:
     Create a JWT access token
     
     Args:
-        data: Dictionary containing token payload (typically {"sub": user_email})
+        data: Dictionary containing token payload (typically {"sub": user_id})
         expires_minutes: Token expiration time in minutes (defaults to settings value)
     
     Returns:

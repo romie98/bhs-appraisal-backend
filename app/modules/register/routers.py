@@ -6,6 +6,8 @@ from typing import List, Optional
 from uuid import UUID
 from datetime import date, timedelta
 from app.core.database import get_db
+from app.modules.auth.models import User
+from app.services.auth_dependency import get_current_user
 from app.modules.register.models import RegisterRecord, RegisterStatus
 from app.modules.students.models import Student
 from app.modules.classes.models import class_students
@@ -22,6 +24,7 @@ router = APIRouter()
 
 @router.get("/", response_model=List[RegisterRecordResponse])
 async def get_register_records(
+    current_user: User = Depends(get_current_user),
     grade: Optional[str] = Query(None, description="Filter by grade (deprecated, use class_id)"),
     class_id: Optional[UUID] = Query(None, description="Filter by class ID"),
     date: Optional[date] = Query(None),

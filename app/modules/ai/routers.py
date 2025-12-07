@@ -3,6 +3,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import Dict, List, Optional
 from app.core.database import get_db
+from app.modules.auth.models import User
+from app.services.auth_dependency import get_current_user
 from app.services.ai_service import (
     send_to_ai, extract_lesson_evidence, extract_log_evidence, 
     extract_register_evidence, extract_assessment_evidence, build_portfolio,
@@ -51,6 +53,7 @@ async def test_ai(request: AITestRequest):
 @router.post("/extract-lesson-evidence", response_model=LessonEvidenceResponse)
 async def extract_lesson_evidence_endpoint(
     request: LessonEvidenceRequest,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -481,6 +484,7 @@ async def get_assessment_evidence(
 @router.post("/build-portfolio", response_model=PortfolioResponse)
 async def build_portfolio_endpoint(
     request: PortfolioEvidenceRequest,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -516,12 +520,11 @@ async def build_portfolio_endpoint(
         ):
             logger.info("Auto-fetching evidence from database...")
             
-            # Fetch lesson evidence
-            lesson_query = db.query(LessonEvidence)
-            if request.teacher_id:
-                # Filter by teacher_id if we can link lessons to teachers
-                # For now, fetch all lesson evidence
-                pass
+            # Fetch lesson evidence - filter by current user's teacher_id
+            from app.modules.lesson_plans.models import LessonPlan
+            lesson_query = db.query(LessonEvidence).join(
+                LessonPlan, LessonEvidence.lesson_id == LessonPlan.id
+            ).filter(LessonPlan.teacher_id == current_user.id)
             lesson_records = lesson_query.all()
             # Group by lesson_id to create proper structure
             lesson_groups = {}
@@ -577,11 +580,9 @@ async def build_portfolio_endpoint(
                     register_groups[r.register_period_id][gp_key].append(r.evidence_text)
             all_evidence["register_evidence"] = list(register_groups.values())
             
-            # Fetch photo evidence and convert to external_uploads format
+            # Fetch photo evidence and convert to external_uploads format - filter by current user
             from app.modules.photo_library.models import PhotoEvidence
-            photo_query = db.query(PhotoEvidence)
-            if request.teacher_id:
-                photo_query = photo_query.filter(PhotoEvidence.teacher_id == request.teacher_id)
+            photo_query = db.query(PhotoEvidence).filter(PhotoEvidence.teacher_id == current_user.id)
             photo_records = photo_query.all()
             
             for photo in photo_records:
@@ -626,6 +627,7 @@ async def build_portfolio_endpoint(
         portfolio_json = json.dumps(portfolio_data)
         db_portfolio = PortfolioCache(
             id=str(uuid.uuid4()),
+            teacher_id=current_user.id,
             portfolio_data=portfolio_json
         )
         db.add(db_portfolio)
@@ -685,6 +687,7 @@ async def build_portfolio_endpoint(
             error_json = json.dumps({"error": str(e), **fallback_data})
             db_portfolio = PortfolioCache(
                 id=fallback_data["portfolio_id"],
+                teacher_id=current_user.id,
                 portfolio_data=error_json
             )
             db.add(db_portfolio)
@@ -699,12 +702,15 @@ async def build_portfolio_endpoint(
 
 @router.get("/portfolio/latest", response_model=PortfolioResponse)
 async def get_latest_portfolio(
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    Retrieve the most recently built portfolio.
+    Retrieve the most recently built portfolio for the current user.
     """
-    portfolio = db.query(PortfolioCache).order_by(
+    portfolio = db.query(PortfolioCache).filter(
+        PortfolioCache.teacher_id == current_user.id
+    ).order_by(
         PortfolioCache.created_at.desc()
     ).first()
     
@@ -940,19 +946,17 @@ async def get_portfolio(
     )
 
 
-@router.get("/portfolio/latest", response_model=PortfolioResponse)
-async def get_latest_portfolio(
-    teacher_id: Optional[str] = None,
+@router.get("/portfolio/latest-alt", response_model=PortfolioResponse)
+async def get_latest_portfolio_alt(
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    Get the most recently created portfolio.
+    Get the most recently created portfolio for the current user.
     """
-    query = db.query(PortfolioCache)
-    if teacher_id:
-        query = query.filter(PortfolioCache.teacher_id == teacher_id)
-    
-    portfolio = query.order_by(PortfolioCache.created_at.desc()).first()
+    portfolio = db.query(PortfolioCache).filter(
+        PortfolioCache.teacher_id == current_user.id
+    ).order_by(PortfolioCache.created_at.desc()).first()
     
     if not portfolio:
         raise HTTPException(

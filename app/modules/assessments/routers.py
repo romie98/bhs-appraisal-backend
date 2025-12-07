@@ -5,6 +5,8 @@ from sqlalchemy import and_, func
 from typing import List, Optional
 from uuid import UUID
 from app.core.database import get_db
+from app.modules.auth.models import User
+from app.services.auth_dependency import get_current_user
 from app.modules.assessments.models import Assessment, AssessmentScore
 from app.modules.students.models import Student
 from app.modules.classes.models import class_students
@@ -28,6 +30,7 @@ router = APIRouter()
 @router.post("/", response_model=AssessmentResponse, status_code=status.HTTP_201_CREATED)
 async def create_assessment(
     assessment: AssessmentCreate,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Create a new assessment"""
@@ -71,6 +74,7 @@ async def create_assessment(
 
 @router.get("/", response_model=List[AssessmentResponse])
 async def get_assessments(
+    current_user: User = Depends(get_current_user),
     grade: Optional[str] = Query(None, description="Filter by grade (deprecated, use class_id)"),
     class_id: Optional[UUID] = Query(None, description="Filter by class ID"),
     skip: int = 0,

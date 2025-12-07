@@ -6,6 +6,7 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.database import Base, engine, get_db
+from app.modules.auth.routers import router as auth_router
 from app.modules.students.routers import router as students_router
 from app.modules.register.routers import router as register_router
 from app.modules.assessments.routers import router as assessments_router
@@ -49,6 +50,7 @@ app.add_middleware(
 )
 
 # Include routers
+app.include_router(auth_router)  # Auth router already has /auth prefix
 app.include_router(students_router, prefix="/students", tags=["Students"])
 app.include_router(register_router, prefix="/register", tags=["Register"])
 app.include_router(assessments_router, prefix="/assessments", tags=["Assessments"])

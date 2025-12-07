@@ -9,6 +9,8 @@ from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File,
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.modules.auth.models import User
+from app.services.auth_dependency import get_current_user
 from app.modules.photo_library.models import PhotoEvidence
 from app.modules.photo_library.schemas import PhotoEvidenceResponse, PhotoEvidenceListItem
 from app.modules.photo_library.services import save_photo_file, extract_text_from_image, get_image_extension
@@ -22,7 +24,7 @@ router = APIRouter()
 @router.post("/upload", response_model=PhotoEvidenceResponse, status_code=status.HTTP_201_CREATED)
 async def upload_photo_evidence(
     file: UploadFile = File(...),
-    teacher_id: str = Form(...),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Upload a photo, run OCR + AI, and store GP recommendations."""
@@ -35,9 +37,9 @@ async def upload_photo_evidence(
                 detail=f"Unsupported file type. Allowed types: {', '.join(allowed)}",
             )
 
-        # Save file
+        # Save file using current user's ID
         content = await file.read()
-        file_path = save_photo_file(content, file.filename, teacher_id)
+        file_path = save_photo_file(content, file.filename, current_user.id)
 
         # Run OCR
         ocr_text = ""
@@ -87,7 +89,7 @@ async def upload_photo_evidence(
         # Store in DB (store recommendations and subsections as JSON strings)
         record = PhotoEvidence(
             id=str(uuid.uuid4()),
-            teacher_id=teacher_id,
+            teacher_id=current_user.id,
             file_path=file_path,
             ocr_text=ocr_text,
             gp_recommendations=json.dumps(gp_recommendations or {}),
@@ -120,14 +122,12 @@ async def upload_photo_evidence(
 
 @router.get("/", response_model=List[PhotoEvidenceListItem])
 async def list_photo_evidence(
-    teacher_id: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Return list of photo evidence with OCR + GP recommendations."""
+    """Return list of photo evidence with OCR + GP recommendations for the current user."""
     try:
-        query = db.query(PhotoEvidence)
-        if teacher_id:
-            query = query.filter(PhotoEvidence.teacher_id == teacher_id)
+        query = db.query(PhotoEvidence).filter(PhotoEvidence.teacher_id == current_user.id)
         items = query.order_by(PhotoEvidence.created_at.desc()).all()
 
         result: List[PhotoEvidenceListItem] = []
@@ -161,10 +161,17 @@ async def list_photo_evidence(
 
 
 @router.get("/{id}", response_model=PhotoEvidenceResponse)
-async def get_photo_evidence(id: UUID, db: Session = Depends(get_db)):
-    """Return single photo evidence entry."""
+async def get_photo_evidence(
+    id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Return single photo evidence entry. Only returns evidence belonging to the current user."""
     try:
-        rec = db.query(PhotoEvidence).filter(PhotoEvidence.id == str(id)).first()
+        rec = db.query(PhotoEvidence).filter(
+            PhotoEvidence.id == str(id),
+            PhotoEvidence.teacher_id == current_user.id
+        ).first()
         if not rec:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,

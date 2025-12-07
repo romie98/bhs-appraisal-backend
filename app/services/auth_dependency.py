@@ -16,20 +16,25 @@ SECRET_KEY = os.getenv("JWT_SECRET", settings.SECRET_KEY)
 ALGORITHM = settings.ALGORITHM
 
 
-def get_current_user_email(token: str = Depends(oauth2_scheme)) -> str:
+def get_current_user(
+    token: str = Depends(oauth2_scheme),
+    db: Session = Depends(get_db)
+) -> User:
     """
-    Extract and verify JWT token, return user email.
+    Get current authenticated user from database.
     
-    This is a dependency that can be used in route handlers to require authentication.
+    This dependency requires authentication and returns the full User object.
+    Decodes JWT token to get user ID and loads user from database.
     
     Args:
         token: JWT token from Authorization header (automatically extracted by OAuth2PasswordBearer)
+        db: Database session
     
     Returns:
-        User email from token
+        User object from database
     
     Raises:
-        HTTPException: If token is invalid, expired, or missing
+        HTTPException: If token is invalid, expired, or user not found
     """
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -39,43 +44,18 @@ def get_current_user_email(token: str = Depends(oauth2_scheme)) -> str:
     
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        email: str = payload.get("sub")
-        if email is None:
+        user_id: str = payload.get("sub")
+        if user_id is None:
             raise credentials_exception
-        return email
     except JWTError:
         raise credentials_exception
-
-
-def get_current_user(
-    email: str = Depends(get_current_user_email),
-    db: Session = Depends(get_db)
-) -> User:
-    """
-    Get current authenticated user from database.
     
-    This dependency requires authentication and returns the full User object.
-    
-    Args:
-        email: User email from token (from get_current_user_email dependency)
-        db: Database session
-    
-    Returns:
-        User object from database
-    
-    Raises:
-        HTTPException: If user not found in database
-    """
-    user = db.query(User).filter(User.email == email).first()
+    user = db.query(User).filter(User.id == user_id).first()
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User not found"
         )
     return user
-
-
-# Alias for convenience
-get_current_user_email = get_current_user_email
 
 

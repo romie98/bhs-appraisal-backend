@@ -6,6 +6,8 @@ from typing import Optional, List
 from uuid import UUID
 from datetime import datetime, date
 from app.core.database import get_db
+from app.modules.auth.models import User
+from app.services.auth_dependency import get_current_user
 from app.modules.logbook.models import LogEntry, LogEntryType
 from app.modules.logbook.schemas import (
     LogEntryCreate,
@@ -18,6 +20,7 @@ router = APIRouter()
 
 @router.get("/", response_model=List[LogEntryResponse])
 async def list_log_entries(
+    current_user: User = Depends(get_current_user),
     entry_type: Optional[str] = Query(None, description="Filter by entry type"),
     class_id: Optional[UUID] = Query(None, description="Filter by class ID"),
     student_id: Optional[UUID] = Query(None, description="Filter by student ID"),

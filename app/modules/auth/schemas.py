@@ -6,6 +6,7 @@ from datetime import datetime
 
 class UserSignup(BaseModel):
     """Schema for user signup"""
+    full_name: str = Field(..., min_length=1, description="User's full name")
     email: EmailStr
     password: str = Field(..., min_length=6, description="Password must be at least 6 characters")
 
@@ -30,6 +31,7 @@ class TokenResponse(BaseModel):
 class UserResponse(BaseModel):
     """Schema for user response"""
     id: str
+    full_name: str
     email: str
     created_at: datetime
     
