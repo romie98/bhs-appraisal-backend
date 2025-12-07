@@ -201,6 +201,10 @@ def login_with_google(google_data: GoogleLogin, db: Session = Depends(get_db)):
         
         email = info.get("email")
         google_id = info.get("sub")
+        full_name = info.get("name") or info.get("given_name", "") + " " + info.get("family_name", "")
+        # Fallback to email username if no name provided
+        if not full_name or full_name.strip() == "":
+            full_name = email.split("@")[0] if email else "User"
         
         if not email:
             raise HTTPException(
@@ -221,6 +225,7 @@ def login_with_google(google_data: GoogleLogin, db: Session = Depends(get_db)):
     if not user:
         # Create new user
         user = User(
+            full_name=full_name.strip(),
             email=email,
             google_id=google_id,
             password_hash=None  # Google-only users don't have passwords
