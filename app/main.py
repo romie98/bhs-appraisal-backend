@@ -84,6 +84,42 @@ def ping():
     return {"status": "ok"}
 
 
+@app.get("/diagnose/database")
+async def diagnose_database(db: Session = Depends(get_db)):
+    """Diagnostic endpoint to check database schema"""
+    try:
+        from sqlalchemy import text
+        
+        # Check users table columns
+        result = db.execute(text("""
+            SELECT column_name, data_type, is_nullable
+            FROM information_schema.columns 
+            WHERE table_name = 'users'
+            ORDER BY ordinal_position;
+        """))
+        
+        columns = [{"name": row[0], "type": row[1], "nullable": row[2]} for row in result]
+        
+        required_columns = ['id', 'full_name', 'email', 'password_hash', 'google_id', 'created_at', 'updated_at']
+        existing_column_names = [col['name'] for col in columns]
+        missing_columns = [col for col in required_columns if col not in existing_column_names]
+        
+        return {
+            "status": "ok" if not missing_columns else "schema_mismatch",
+            "existing_columns": existing_column_names,
+            "required_columns": required_columns,
+            "missing_columns": missing_columns,
+            "column_details": columns,
+            "message": "All required columns exist" if not missing_columns else f"Missing columns: {', '.join(missing_columns)}. Run migration to fix."
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e),
+            "message": "Failed to check database schema"
+        }
+
+
 # Helper endpoint for markbook classes
 @app.get("/markbook/classes")
 async def get_markbook_classes(db: Session = Depends(get_db)):

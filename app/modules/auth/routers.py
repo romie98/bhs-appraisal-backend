@@ -60,10 +60,19 @@ def register(user_data: UserSignup, db: Session = Depends(get_db)):
     
     except Exception as e:
         db.rollback()
-        logger.error(f"Error creating user: {str(e)}", exc_info=True)
+        error_msg = str(e)
+        logger.error(f"Error creating user: {error_msg}", exc_info=True)
+        
+        # Provide more detailed error message for debugging
+        # Check if it's a database column error
+        if "column" in error_msg.lower() or "does not exist" in error_msg.lower():
+            detail_msg = f"Database schema error: {error_msg}. Please run the migration to add missing columns."
+        else:
+            detail_msg = f"Failed to create user account: {error_msg}"
+        
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create user account"
+            detail=detail_msg
         )
 
 
