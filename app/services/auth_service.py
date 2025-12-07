@@ -6,7 +6,8 @@ import os
 from app.core.config import settings
 
 # Password hashing context
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Using Argon2 instead of bcrypt for better compatibility and no 72-byte limit
+pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 
 # JWT configuration - use from settings or environment
 SECRET_KEY = os.getenv("JWT_SECRET", settings.SECRET_KEY)
@@ -15,7 +16,7 @@ ACCESS_TOKEN_EXPIRE_MINUTES = settings.ACCESS_TOKEN_EXPIRE_MINUTES
 
 
 def hash_password(password: str) -> str:
-    """Hash a password using bcrypt"""
+    """Hash a password using Argon2"""
     return pwd_context.hash(password)
 
 
