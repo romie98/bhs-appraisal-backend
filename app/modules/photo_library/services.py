@@ -1,11 +1,14 @@
 """Photo Evidence Library service functions (file handling + OCR)"""
 import logging
 import os
+import base64
 from pathlib import Path
 
-from PIL import Image
+from openai import OpenAI
 
 logger = logging.getLogger(__name__)
+
+client = OpenAI()
 
 # Base upload directory for photos
 UPLOAD_DIR = "uploads"
@@ -38,36 +41,46 @@ def save_photo_file(file_content: bytes, filename: str, teacher_id: str) -> str:
 
 
 def extract_text_from_image(image_path: str) -> str:
-    """Run OCR on the image using pytesseract and return extracted text."""
+    """
+    Extract text from an uploaded image using OpenAI Vision instead of Tesseract.
+    Works on Railway with no OS dependencies.
+    """
     try:
-        try:
-            import pytesseract
-            import os
-            import platform
-            
-            # Set Tesseract path for Windows if needed
-            if platform.system() == "Windows":
-                tesseract_path = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
-                if os.path.exists(tesseract_path):
-                    pytesseract.pytesseract.tesseract_cmd = tesseract_path
-                else:
-                    logger.warning(f"Tesseract not found at {tesseract_path}. Trying system PATH...")
-        except ImportError:
-            logger.error("pytesseract library not installed. Install with: pip install pytesseract")
-            raise Exception("OCR requires pytesseract. Please install it on the backend.")
+        with open(image_path, "rb") as f:
+            img_bytes = f.read()
+            b64 = base64.b64encode(img_bytes).decode()
 
-        img = Image.open(image_path)
-        text = pytesseract.image_to_string(img)
-        if not text:
-            return ""
+        # Detect MIME type from file extension
+        ext = Path(image_path).suffix.lower()
+        mime_type_map = {
+            ".jpg": "image/jpeg",
+            ".jpeg": "image/jpeg",
+            ".png": "image/png",
+            ".heic": "image/heic",
+            ".webp": "image/webp"
+        }
+        mime_type = mime_type_map.get(ext, "image/jpeg")
 
-        # Basic cleaning
-        cleaned = text.replace("\r", " ").replace("\t", " ")
-        cleaned = "\n".join(line.strip() for line in cleaned.splitlines() if line.strip())
-        return cleaned.strip()
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": "Extract all readable text from this image. Return plain text only."},
+                        {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{b64}"}}
+                    ]
+                }
+            ],
+            temperature=0
+        )
+
+        text = response.choices[0].message.content
+        return text or ""
+
     except Exception as e:
-        logger.error(f"Error running OCR on {image_path}: {e}", exc_info=True)
-        raise Exception(f"Failed to extract text from image: {e}")
+        logger.error(f"OpenAI Vision OCR failed: {e}")
+        return ""
 
 
 def get_image_extension(filename: str) -> str:
