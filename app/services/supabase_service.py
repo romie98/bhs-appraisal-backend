@@ -56,12 +56,26 @@ def upload_file_to_supabase(file: UploadFile, folder: str = "") -> Dict:
         response = supabase.storage.from_(SUPABASE_BUCKET).upload(
             full_path, 
             file_bytes,
-            file_options={"content-type": file.content_type or "application/octet-stream"}
+            file_options={"content-type": file.content_type or "application/octet-stream", "upsert": "true"}
         )
         
         logger.info(f"File uploaded to Supabase: {full_path}")
         
-        return {"path": full_path, "filename": unique_name}
+        # Get public URL for the uploaded file
+        try:
+            public_url = supabase.storage.from_(SUPABASE_BUCKET).get_public_url(full_path)
+            logger.info(f"Public URL generated: {public_url}")
+        except Exception as e:
+            logger.warning(f"Could not get public URL, using signed URL instead: {e}")
+            # Fallback to signed URL if public URL fails
+            public_url = get_signed_url(full_path, expires_in=31536000)  # 1 year expiration
+        
+        return {
+            "path": full_path,
+            "filename": unique_name,
+            "url": public_url,
+            "bucket": SUPABASE_BUCKET
+        }
     
     except Exception as e:
         logger.error(f"Error uploading file to Supabase: {str(e)}", exc_info=True)
@@ -96,16 +110,52 @@ def upload_bytes_to_supabase(file_bytes: bytes, filename: str, folder: str = "",
         response = supabase.storage.from_(SUPABASE_BUCKET).upload(
             full_path,
             file_bytes,
-            file_options={"content-type": content_type}
+            file_options={"content-type": content_type, "upsert": "true"}
         )
         
         logger.info(f"File bytes uploaded to Supabase: {full_path}")
         
-        return {"path": full_path, "filename": unique_name}
+        # Get public URL for the uploaded file
+        try:
+            public_url = supabase.storage.from_(SUPABASE_BUCKET).get_public_url(full_path)
+            logger.info(f"Public URL generated: {public_url}")
+        except Exception as e:
+            logger.warning(f"Could not get public URL, using signed URL instead: {e}")
+            # Fallback to signed URL if public URL fails
+            public_url = get_signed_url(full_path, expires_in=31536000)  # 1 year expiration
+        
+        return {
+            "path": full_path,
+            "filename": unique_name,
+            "url": public_url,
+            "bucket": SUPABASE_BUCKET
+        }
     
     except Exception as e:
         logger.error(f"Error uploading file bytes to Supabase: {str(e)}", exc_info=True)
         return {"error": str(e)}
+
+
+def get_public_url(path: str) -> Optional[str]:
+    """
+    Get a public URL for accessing a file in Supabase Storage.
+    
+    Args:
+        path: Path to the file in Supabase Storage (e.g., "evidence/uuid.pdf")
+    
+    Returns:
+        Public URL string on success, None on failure
+    """
+    if not supabase:
+        logger.error("Supabase client not initialized")
+        return None
+    
+    try:
+        public_url = supabase.storage.from_(SUPABASE_BUCKET).get_public_url(path)
+        return public_url
+    except Exception as e:
+        logger.error(f"Error getting public URL for {path}: {str(e)}", exc_info=True)
+        return None
 
 
 def get_signed_url(path: str, expires_in: int = 3600) -> Optional[str]:

@@ -96,3 +96,6 @@ def check_users_table():
 if __name__ == "__main__":
     success = check_users_table()
     sys.exit(0 if success else 1)
+
+
+

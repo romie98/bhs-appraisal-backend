@@ -146,3 +146,6 @@ For future migrations:
 3. Update existing rows before making columns NOT NULL
 4. Test migrations on a staging database first
 5. Keep migration files in version control
+
+
+

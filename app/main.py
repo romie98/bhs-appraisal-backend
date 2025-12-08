@@ -16,6 +16,7 @@ from app.modules.logbook.routers import router as logbook_router
 from app.modules.ai.routers import router as ai_router
 from app.modules.lesson_plans.routers import router as lesson_plans_router
 from app.modules.photo_library.routers import router as photo_library_router
+from app.modules.evidence.routers import router as evidence_router
 
 # Configure logging
 logging.basicConfig(
@@ -60,6 +61,7 @@ app.include_router(logbook_router, prefix="/logbook", tags=["Log Book"])
 app.include_router(ai_router, prefix="/ai", tags=["AI"])
 app.include_router(lesson_plans_router, prefix="/lesson-plans", tags=["Lesson Plans"])
 app.include_router(photo_library_router, prefix="/photo-library", tags=["Photo Library"])
+app.include_router(evidence_router, tags=["Evidence"])  # Evidence router already has /evidence prefix
 
 # Serve uploaded files statically
 import os

@@ -20,6 +20,7 @@ from app.modules.logbook.models import LogEntry
 from app.modules.ai.models import LessonEvidence, LogEvidence, RegisterEvidence, AssessmentEvidence, PortfolioCache, AppraisalReport
 from app.modules.lesson_plans.models import LessonPlan
 from app.modules.photo_library.models import PhotoEvidence
+from app.modules.evidence.models import Evidence
 
 # this is the Alembic Config object
 config = context.config

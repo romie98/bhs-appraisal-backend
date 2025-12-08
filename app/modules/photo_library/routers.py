@@ -15,6 +15,7 @@ from app.modules.photo_library.models import PhotoEvidence
 from app.modules.photo_library.schemas import PhotoEvidenceResponse, PhotoEvidenceListItem
 from app.modules.photo_library.services import save_photo_file, extract_text_from_image, get_image_extension
 from app.services.ai_service import analyze_photo_evidence
+from app.services.supabase_service import upload_file_to_supabase, get_public_url
 
 logger = logging.getLogger(__name__)
 
@@ -37,17 +38,48 @@ async def upload_photo_evidence(
                 detail=f"Unsupported file type. Allowed types: {', '.join(allowed)}",
             )
 
-        # Save file using current user's ID
+        # Read file content
         content = await file.read()
-        file_path = save_photo_file(content, file.filename, current_user.id)
-
-        # Run OCR
+        
+        # Run OCR on the content before uploading (works with bytes)
         ocr_text = ""
         try:
-            ocr_text = extract_text_from_image(file_path)
+            # Save temporarily for OCR, then delete
+            import tempfile
+            with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp_file:
+                tmp_file.write(content)
+                tmp_path = tmp_file.name
+            
+            try:
+                ocr_text = extract_text_from_image(tmp_path)
+            finally:
+                # Clean up temp file
+                import os
+                if os.path.exists(tmp_path):
+                    os.unlink(tmp_path)
         except Exception as e:
             # Log but don't fail upload; allow manual evidence later
-            logger.warning(f"OCR failed for {file_path}: {e}")
+            logger.warning(f"OCR failed: {e}")
+        
+        # Upload to Supabase Storage
+        from app.services.supabase_service import upload_bytes_to_supabase
+        supabase_result = upload_bytes_to_supabase(
+            file_bytes=content,
+            filename=file.filename,
+            folder="evidence",
+            content_type=file.content_type or "image/jpeg"
+        )
+        supabase_url = None
+        file_path = None
+        
+        if "error" not in supabase_result:
+            file_path = supabase_result.get("path")
+            supabase_url = supabase_result.get("url")
+            logger.info(f"File uploaded to Supabase: {file_path}, URL: {supabase_url}")
+        else:
+            # Fallback to local storage
+            logger.warning(f"Supabase upload failed, using local storage: {supabase_result.get('error')}")
+            file_path = save_photo_file(content, file.filename, current_user.id)
 
         # Run AI analysis if we have some text
         gp_recommendations = {}
@@ -91,6 +123,7 @@ async def upload_photo_evidence(
             id=str(uuid.uuid4()),
             teacher_id=current_user.id,
             file_path=file_path,
+            supabase_url=supabase_url,
             ocr_text=ocr_text,
             gp_recommendations=json.dumps(gp_recommendations or {}),
             gp_subsections=json.dumps(gp_subsections or {}),
@@ -103,6 +136,7 @@ async def upload_photo_evidence(
             id=record.id,
             teacher_id=record.teacher_id,
             file_path=record.file_path,
+            supabase_url=record.supabase_url,
             ocr_text=record.ocr_text,
             gp_recommendations=gp_recommendations,
             gp_subsections=gp_subsections,
@@ -145,6 +179,7 @@ async def list_photo_evidence(
                     id=rec.id,
                     teacher_id=rec.teacher_id,
                     file_path=rec.file_path,
+                    supabase_url=rec.supabase_url,
                     ocr_text=rec.ocr_text,
                     gp_recommendations=gp,
                     gp_subsections=subsections,
@@ -191,6 +226,7 @@ async def get_photo_evidence(
             id=rec.id,
             teacher_id=rec.teacher_id,
             file_path=rec.file_path,
+            supabase_url=rec.supabase_url,
             ocr_text=rec.ocr_text,
             gp_recommendations=gp,
             gp_subsections=subsections,

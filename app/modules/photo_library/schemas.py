@@ -20,6 +20,7 @@ class PhotoEvidenceResponse(BaseModel):
     id: UUID
     teacher_id: str
     file_path: str
+    supabase_url: Optional[str] = None  # Public URL from Supabase
     ocr_text: Optional[str] = None
     gp_recommendations: Dict[str, Any] = {}
     gp_subsections: Dict[str, Any] = {}

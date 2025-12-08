@@ -11,7 +11,8 @@ class PhotoEvidence(Base):
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()), index=True)
     teacher_id = Column(String(36), nullable=False, index=True)
-    file_path = Column(String(500), nullable=False)
+    file_path = Column(String(500), nullable=False)  # Supabase path or local path
+    supabase_url = Column(String(1000), nullable=True)  # Public URL from Supabase
     ocr_text = Column(Text, nullable=True)
     gp_recommendations = Column(Text, nullable=True)  # JSON string of GP1-GP6 recommendations
     gp_subsections = Column(Text, nullable=True)  # JSON string of GP subsections mapping
