@@ -19,7 +19,9 @@ class PhotoEvidenceResponse(BaseModel):
     """Schema for photo evidence response"""
     id: UUID
     teacher_id: str
-    file_path: str
+    filename: str
+    file_path: Optional[str] = None  # Local path (fallback only)
+    supabase_path: Optional[str] = None  # Supabase storage path
     supabase_url: Optional[str] = None  # Public URL from Supabase
     ocr_text: Optional[str] = None
     gp_recommendations: Dict[str, Any] = {}

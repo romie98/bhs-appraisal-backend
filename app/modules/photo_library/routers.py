@@ -70,12 +70,13 @@ async def upload_photo_evidence(
             content_type=file.content_type or "image/jpeg"
         )
         supabase_url = None
+        supabase_path = None
         file_path = None
         
         if "error" not in supabase_result:
-            file_path = supabase_result.get("path")
+            supabase_path = supabase_result.get("path")
             supabase_url = supabase_result.get("url")
-            logger.info(f"File uploaded to Supabase: {file_path}, URL: {supabase_url}")
+            logger.info(f"File uploaded to Supabase: {supabase_path}, URL: {supabase_url}")
         else:
             # Fallback to local storage
             logger.warning(f"Supabase upload failed, using local storage: {supabase_result.get('error')}")
@@ -122,7 +123,9 @@ async def upload_photo_evidence(
         record = PhotoEvidence(
             id=str(uuid.uuid4()),
             teacher_id=current_user.id,
-            file_path=file_path,
+            filename=file.filename,
+            file_path=file_path,  # Only set if local storage fallback
+            supabase_path=supabase_path,  # Supabase storage path
             supabase_url=supabase_url,
             ocr_text=ocr_text,
             gp_recommendations=json.dumps(gp_recommendations or {}),
@@ -135,7 +138,9 @@ async def upload_photo_evidence(
         return PhotoEvidenceResponse(
             id=record.id,
             teacher_id=record.teacher_id,
+            filename=record.filename,
             file_path=record.file_path,
+            supabase_path=record.supabase_path,
             supabase_url=record.supabase_url,
             ocr_text=record.ocr_text,
             gp_recommendations=gp_recommendations,
@@ -178,7 +183,9 @@ async def list_photo_evidence(
                 PhotoEvidenceListItem(
                     id=rec.id,
                     teacher_id=rec.teacher_id,
+                    filename=rec.filename,
                     file_path=rec.file_path,
+                    supabase_path=rec.supabase_path,
                     supabase_url=rec.supabase_url,
                     ocr_text=rec.ocr_text,
                     gp_recommendations=gp,
@@ -225,7 +232,9 @@ async def get_photo_evidence(
         return PhotoEvidenceResponse(
             id=rec.id,
             teacher_id=rec.teacher_id,
+            filename=rec.filename,
             file_path=rec.file_path,
+            supabase_path=rec.supabase_path,
             supabase_url=rec.supabase_url,
             ocr_text=rec.ocr_text,
             gp_recommendations=gp,

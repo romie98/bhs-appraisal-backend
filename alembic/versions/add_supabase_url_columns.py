@@ -17,16 +17,42 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # Add supabase_url column to photo_evidence table
+    # Add supabase_url, supabase_path, and filename columns to photo_evidence table
     op.execute("""
         DO $$ 
         BEGIN
+            -- Add supabase_url column if it doesn't exist
             IF NOT EXISTS (
                 SELECT 1 FROM information_schema.columns 
                 WHERE table_name = 'photo_evidence' AND column_name = 'supabase_url'
             ) THEN
                 ALTER TABLE photo_evidence ADD COLUMN supabase_url VARCHAR(1000);
             END IF;
+            
+            -- Add supabase_path column if it doesn't exist
+            IF NOT EXISTS (
+                SELECT 1 FROM information_schema.columns 
+                WHERE table_name = 'photo_evidence' AND column_name = 'supabase_path'
+            ) THEN
+                ALTER TABLE photo_evidence ADD COLUMN supabase_path VARCHAR(500);
+            END IF;
+            
+            -- Add filename column if it doesn't exist (for backward compatibility)
+            IF NOT EXISTS (
+                SELECT 1 FROM information_schema.columns 
+                WHERE table_name = 'photo_evidence' AND column_name = 'filename'
+            ) THEN
+                ALTER TABLE photo_evidence ADD COLUMN filename VARCHAR(500);
+                -- Populate filename from file_path for existing records
+                UPDATE photo_evidence SET filename = SUBSTRING(file_path FROM '[^/\\\\]+$') WHERE filename IS NULL AND file_path IS NOT NULL;
+                -- Set default for any remaining NULL values
+                UPDATE photo_evidence SET filename = 'unknown' WHERE filename IS NULL;
+                -- Make filename NOT NULL after populating
+                ALTER TABLE photo_evidence ALTER COLUMN filename SET NOT NULL;
+            END IF;
+            
+            -- Make file_path nullable (since we now use supabase_path for Supabase files)
+            ALTER TABLE photo_evidence ALTER COLUMN file_path DROP NOT NULL;
         END $$;
     """)
     
@@ -53,7 +79,7 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_evidence_id'), table_name='evidence')
     op.drop_table('evidence')
     
-    # Remove supabase_url column from photo_evidence
+    # Remove supabase_url, supabase_path, and filename columns from photo_evidence
     op.execute("""
         DO $$ 
         BEGIN
@@ -63,7 +89,25 @@ def downgrade() -> None:
             ) THEN
                 ALTER TABLE photo_evidence DROP COLUMN supabase_url;
             END IF;
+            
+            IF EXISTS (
+                SELECT 1 FROM information_schema.columns 
+                WHERE table_name = 'photo_evidence' AND column_name = 'supabase_path'
+            ) THEN
+                ALTER TABLE photo_evidence DROP COLUMN supabase_path;
+            END IF;
+            
+            IF EXISTS (
+                SELECT 1 FROM information_schema.columns 
+                WHERE table_name = 'photo_evidence' AND column_name = 'filename'
+            ) THEN
+                ALTER TABLE photo_evidence DROP COLUMN filename;
+            END IF;
+            
+            -- Restore file_path NOT NULL constraint
+            ALTER TABLE photo_evidence ALTER COLUMN file_path SET NOT NULL;
         END $$;
     """)
+
 
 
