@@ -3,6 +3,8 @@
 ## Problem
 The frontend is sending photo upload requests to relative URLs (`/photo-library/upload`), which causes requests to go to the Vercel frontend domain instead of the Railway backend API.
 
+**CRITICAL:** All photo upload requests must use absolute URLs pointing to the Railway backend, not relative URLs.
+
 ## Required Changes
 
 ### 1. Find All Photo Library Upload Calls
@@ -231,3 +233,4 @@ export default function PhotoAnalyzer() {
 - Never use relative URLs for API calls in production
 - Always use the `apiUrl` constant from the service file
 - Test in both development and production environments
+

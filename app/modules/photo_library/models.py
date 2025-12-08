@@ -1,5 +1,5 @@
 """Photo Evidence Library models"""
-from sqlalchemy import Column, String, Text, DateTime
+from sqlalchemy import Column, String, Text, DateTime, JSON
 from sqlalchemy.sql import func
 from app.core.database import Base
 import uuid
@@ -12,13 +12,13 @@ class PhotoEvidence(Base):
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()), index=True)
     teacher_id = Column(String(36), nullable=False, index=True)
     filename = Column(String(500), nullable=False)  # Original filename (required)
-    file_path = Column(String(500), nullable=True)  # Local path (fallback only, nullable)
-    supabase_path = Column(String(500), nullable=True)  # Supabase storage path (nullable)
-    supabase_url = Column(String(1000), nullable=True)  # Public URL from Supabase (nullable)
+    file_path = Column(String(500), nullable=True)  # Local path (fallback only)
+    supabase_path = Column(String(500), nullable=True)  # Supabase storage path
+    supabase_url = Column(String(1000), nullable=True)  # Public URL from Supabase
     ocr_text = Column(Text, nullable=True)
-    gp_recommendations = Column(Text, nullable=True)  # JSON string of GP1-GP6 recommendations
-    gp_subsections = Column(Text, nullable=True)  # JSON string of GP subsections mapping
+    gp_recommendations = Column(JSON, nullable=True)  # JSON/JSONB of GP1-GP6 recommendations
+    gp_subsections = Column(JSON, nullable=True)  # JSON/JSONB of GP subsections mapping
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     def __repr__(self):
-        return f"<PhotoEvidence(id={self.id}, teacher_id={self.teacher_id}, file_path={self.file_path})>"
+        return f"<PhotoEvidence(id={self.id}, teacher_id={self.teacher_id}, filename={self.filename})>"

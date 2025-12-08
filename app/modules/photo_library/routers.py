@@ -119,7 +119,7 @@ async def upload_photo_evidence(
                 gp_recommendations = {f"GP{i}": [] for i in range(1, 7)}
                 gp_subsections = {f"GP{i}": {"subsections": [], "justifications": {}} for i in range(1, 7)}
 
-        # Store in DB (store recommendations and subsections as JSON strings)
+        # Store in DB (JSON columns accept dicts directly)
         record = PhotoEvidence(
             id=str(uuid.uuid4()),
             teacher_id=current_user.id,
@@ -128,8 +128,8 @@ async def upload_photo_evidence(
             supabase_path=supabase_path,  # Supabase storage path
             supabase_url=supabase_url,
             ocr_text=ocr_text,
-            gp_recommendations=json.dumps(gp_recommendations or {}),
-            gp_subsections=json.dumps(gp_subsections or {}),
+            gp_recommendations=gp_recommendations or {},  # JSON column accepts dict
+            gp_subsections=gp_subsections or {},  # JSON column accepts dict
         )
         db.add(record)
         db.commit()
@@ -171,13 +171,25 @@ async def list_photo_evidence(
 
         result: List[PhotoEvidenceListItem] = []
         for rec in items:
-            try:
-                gp = json.loads(rec.gp_recommendations) if rec.gp_recommendations else {}
-            except json.JSONDecodeError:
+            # Handle JSON columns (returns dict) or legacy Text columns (returns string)
+            if isinstance(rec.gp_recommendations, dict):
+                gp = rec.gp_recommendations
+            elif isinstance(rec.gp_recommendations, str):
+                try:
+                    gp = json.loads(rec.gp_recommendations) if rec.gp_recommendations else {}
+                except json.JSONDecodeError:
+                    gp = {}
+            else:
                 gp = {}
-            try:
-                subsections = json.loads(rec.gp_subsections) if rec.gp_subsections else {}
-            except json.JSONDecodeError:
+            
+            if isinstance(rec.gp_subsections, dict):
+                subsections = rec.gp_subsections
+            elif isinstance(rec.gp_subsections, str):
+                try:
+                    subsections = json.loads(rec.gp_subsections) if rec.gp_subsections else {}
+                except json.JSONDecodeError:
+                    subsections = {}
+            else:
                 subsections = {}
             result.append(
                 PhotoEvidenceListItem(
@@ -220,13 +232,25 @@ async def get_photo_evidence(
                 detail="Photo evidence not found",
             )
 
-        try:
-            gp = json.loads(rec.gp_recommendations) if rec.gp_recommendations else {}
-        except json.JSONDecodeError:
+        # Handle JSON columns (returns dict) or legacy Text columns (returns string)
+        if isinstance(rec.gp_recommendations, dict):
+            gp = rec.gp_recommendations
+        elif isinstance(rec.gp_recommendations, str):
+            try:
+                gp = json.loads(rec.gp_recommendations) if rec.gp_recommendations else {}
+            except json.JSONDecodeError:
+                gp = {}
+        else:
             gp = {}
-        try:
-            subsections = json.loads(rec.gp_subsections) if rec.gp_subsections else {}
-        except json.JSONDecodeError:
+        
+        if isinstance(rec.gp_subsections, dict):
+            subsections = rec.gp_subsections
+        elif isinstance(rec.gp_subsections, str):
+            try:
+                subsections = json.loads(rec.gp_subsections) if rec.gp_subsections else {}
+            except json.JSONDecodeError:
+                subsections = {}
+        else:
             subsections = {}
 
         return PhotoEvidenceResponse(

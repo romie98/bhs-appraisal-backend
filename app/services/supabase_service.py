@@ -64,11 +64,17 @@ def upload_file_to_supabase(file: UploadFile, folder: str = "") -> Dict:
         # Get public URL for the uploaded file
         try:
             public_url = supabase.storage.from_(SUPABASE_BUCKET).get_public_url(full_path)
+            # Remove trailing '?' if present
+            if public_url and public_url.endswith("?"):
+                public_url = public_url[:-1]
             logger.info(f"Public URL generated: {public_url}")
         except Exception as e:
             logger.warning(f"Could not get public URL, using signed URL instead: {e}")
             # Fallback to signed URL if public URL fails
             public_url = get_signed_url(full_path, expires_in=31536000)  # 1 year expiration
+            # Remove trailing '?' if present
+            if public_url and public_url.endswith("?"):
+                public_url = public_url[:-1]
         
         return {
             "path": full_path,
@@ -118,11 +124,17 @@ def upload_bytes_to_supabase(file_bytes: bytes, filename: str, folder: str = "",
         # Get public URL for the uploaded file
         try:
             public_url = supabase.storage.from_(SUPABASE_BUCKET).get_public_url(full_path)
+            # Remove trailing '?' if present
+            if public_url and public_url.endswith("?"):
+                public_url = public_url[:-1]
             logger.info(f"Public URL generated: {public_url}")
         except Exception as e:
             logger.warning(f"Could not get public URL, using signed URL instead: {e}")
             # Fallback to signed URL if public URL fails
             public_url = get_signed_url(full_path, expires_in=31536000)  # 1 year expiration
+            # Remove trailing '?' if present
+            if public_url and public_url.endswith("?"):
+                public_url = public_url[:-1]
         
         return {
             "path": full_path,

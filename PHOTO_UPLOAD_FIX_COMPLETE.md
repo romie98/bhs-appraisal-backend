@@ -160,3 +160,4 @@ If issues persist:
 3. Check frontend console for API URL
 4. Verify environment variables are set
 5. Check Network tab for actual request URLs
+

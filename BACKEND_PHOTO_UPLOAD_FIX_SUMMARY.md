@@ -184,3 +184,4 @@ ALTER TABLE photo_evidence ADD COLUMN IF NOT EXISTS supabase_url VARCHAR(1000);
 2. Deploy backend
 3. Update frontend (see `FRONTEND_PHOTO_UPLOAD_FIX.md`)
 4. Test end-to-end upload flow
+
