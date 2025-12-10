@@ -34,6 +34,8 @@
 
 See `EVIDENCE_PREVIEW_UI_FIX.md` for complete frontend guide.
 
+**For latest modal overlay and preview fixes, see `EVIDENCE_MODAL_PATCH.md`**
+
 ### Key Frontend Tasks:
 
 1. **Upload Form:**
@@ -214,3 +216,4 @@ After all fixes:
 4. ⏳ Test upload with title
 5. ⏳ Test preview modal
 6. ⏳ Verify GP filtering
+

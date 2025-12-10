@@ -1,5 +1,7 @@
 # Evidence Preview UI Fix Guide
 
+> **Note:** For the latest modal overlay and preview fixes, see `EVIDENCE_MODAL_PATCH.md`
+
 ## Backend Changes (Completed)
 
 ### 1. Database Schema
@@ -407,3 +409,4 @@ function EvidenceUploadForm({ gpSection, token, onUploadSuccess }) {
 - Frontend should always use absolute API URLs (not relative)
 - Modal z-index should be higher than other page elements
 - Image object-fit: contain prevents stretching while maintaining aspect ratio
+
