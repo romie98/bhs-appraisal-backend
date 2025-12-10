@@ -234,3 +234,4 @@ export default function PhotoAnalyzer() {
 - Always use the `apiUrl` constant from the service file
 - Test in both development and production environments
 
+

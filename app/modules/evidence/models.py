@@ -12,6 +12,7 @@ class Evidence(Base):
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()), index=True)
     teacher_id = Column(String(36), nullable=False, index=True)
     gp_section = Column(String(10), nullable=True)  # GP1, GP2, etc.
+    title = Column(Text, nullable=True)  # Evidence title
     description = Column(Text, nullable=True)
     filename = Column(String(500), nullable=False)
     supabase_path = Column(String(500), nullable=False)
@@ -20,6 +21,7 @@ class Evidence(Base):
 
     def __repr__(self):
         return f"<Evidence(id={self.id}, teacher_id={self.teacher_id}, gp_section={self.gp_section})>"
+
 
 
 

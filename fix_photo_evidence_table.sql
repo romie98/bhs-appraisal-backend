@@ -90,3 +90,4 @@ SELECT
 FROM information_schema.columns 
 WHERE table_name = 'photo_evidence'
 ORDER BY ordinal_position;
+

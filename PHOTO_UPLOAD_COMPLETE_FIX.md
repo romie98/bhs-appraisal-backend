@@ -213,3 +213,4 @@ After all fixes:
 3. ⏳ Fix frontend (see `FRONTEND_PHOTO_UPLOAD_FIX.md`)
 4. ⏳ Test end-to-end upload flow
 5. ⏳ Verify all data saves correctly
+

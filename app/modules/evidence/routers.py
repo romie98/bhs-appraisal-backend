@@ -25,6 +25,7 @@ router = APIRouter(prefix="/evidence", tags=["Evidence"])
 async def upload_evidence(
     file: UploadFile = File(...),
     gp_section: Optional[str] = Form(None),
+    title: Optional[str] = Form(None),
     description: Optional[str] = Form(None),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -35,6 +36,7 @@ async def upload_evidence(
     Args:
         file: The file to upload
         gp_section: Optional GP section (GP1, GP2, etc.)
+        title: Optional title for the evidence
         description: Optional description of the evidence
         current_user: Authenticated user
         db: Database session
@@ -80,6 +82,7 @@ async def upload_evidence(
             id=str(uuid.uuid4()),
             teacher_id=current_user.id,
             gp_section=gp_section,
+            title=title,
             description=description,
             filename=file.filename,
             supabase_path=supabase_path,
@@ -96,6 +99,7 @@ async def upload_evidence(
             "id": evidence_record.id,
             "teacher_id": evidence_record.teacher_id,
             "gp_section": evidence_record.gp_section,
+            "title": evidence_record.title,
             "description": evidence_record.description,
             "filename": evidence_record.filename,
             "supabase_path": evidence_record.supabase_path,
@@ -144,6 +148,7 @@ async def list_evidence(
                 "id": record.id,
                 "teacher_id": record.teacher_id,
                 "gp_section": record.gp_section,
+                "title": record.title,
                 "description": record.description,
                 "filename": record.filename,
                 "supabase_path": record.supabase_path,
@@ -194,6 +199,7 @@ async def get_evidence(
             "id": record.id,
             "teacher_id": record.teacher_id,
             "gp_section": record.gp_section,
+            "title": record.title,
             "description": record.description,
             "filename": record.filename,
             "supabase_path": record.supabase_path,
@@ -209,6 +215,7 @@ async def get_evidence(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get evidence: {str(e)}"
         )
+
 
 
 
