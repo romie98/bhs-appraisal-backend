@@ -3,6 +3,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from app.core.database import get_db
+from app.core.features import require_feature
+from app.modules.auth.models import User
 from .services import PDFExportService
 
 router = APIRouter()
@@ -12,10 +14,12 @@ pdf_service = PDFExportService()
 @router.get("/markbook/{grade}")
 async def export_markbook(
     grade: str,
+    user: User = Depends(require_feature("EXPORT_REPORTS")),
     db: Session = Depends(get_db)
 ):
     """
-    Export Mark Book Summary PDF for a grade
+    Export Mark Book Summary PDF for a grade.
+    Requires EXPORT_REPORTS feature (PREMIUM plan).
     
     - **grade**: Grade identifier (e.g., "10-9", "11-1")
     """
@@ -39,10 +43,12 @@ async def export_markbook(
 @router.get("/attendance/{grade}")
 async def export_attendance(
     grade: str,
+    user: User = Depends(require_feature("EXPORT_REPORTS")),
     db: Session = Depends(get_db)
 ):
     """
-    Export Attendance Summary PDF for a grade
+    Export Attendance Summary PDF for a grade.
+    Requires EXPORT_REPORTS feature (PREMIUM plan).
     
     - **grade**: Grade identifier (e.g., "10-9", "11-1")
     """
@@ -66,10 +72,12 @@ async def export_attendance(
 @router.get("/student/{student_id}")
 async def export_student_progress(
     student_id: str,
+    user: User = Depends(require_feature("EXPORT_REPORTS")),
     db: Session = Depends(get_db)
 ):
     """
-    Export Student Progress Report PDF
+    Export Student Progress Report PDF.
+    Requires EXPORT_REPORTS feature (PREMIUM plan).
     
     - **student_id**: UUID of the student
     """

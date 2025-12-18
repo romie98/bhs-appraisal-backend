@@ -13,6 +13,7 @@ from sqlalchemy.sql import func
 from app.core.database import get_db
 from app.modules.auth.models import User
 from app.modules.evidence.models import Evidence
+from app.modules.evidence.services import can_upload_evidence
 from app.services.auth_dependency import get_current_user
 from app.services.supabase_service import upload_bytes_to_supabase
 
@@ -45,6 +46,14 @@ async def upload_evidence(
         Evidence record with Supabase URL
     """
     try:
+        # Check upload limits for FREE users
+        if gp_section:
+            if not can_upload_evidence(current_user, gp_section, db):
+                raise HTTPException(
+                    status_code=status.HTTP_402_PAYMENT_REQUIRED,
+                    detail="Free plan allows up to 3 uploads per GP subsection. Upgrade to Premium."
+                )
+        
         # Validate file
         if not file.filename:
             raise HTTPException(
@@ -94,6 +103,33 @@ async def upload_evidence(
         db.refresh(evidence_record)
         
         logger.info(f"Evidence uploaded: {supabase_path} by user {current_user.id}")
+        
+        # Log activity for admin analytics (after successful upload)
+        try:
+            from app.modules.admin_analytics.helpers import log_user_activity
+            log_user_activity(
+                db, 
+                current_user.id, 
+                "evidence_upload",
+                entity_type="evidence",
+                entity_id=evidence_record.id,
+                metadata={"filename": evidence_record.filename, "gp_section": evidence_record.gp_section}
+            )
+        except Exception:
+            pass  # Don't break upload if analytics fails
+        
+        # Log activity for admin activity feed
+        try:
+            from app.modules.admin_activity.services import log_activity
+            log_activity(
+                db,
+                user=current_user,
+                action="UPLOAD_EVIDENCE",
+                resource=evidence_record.id,
+                metadata={"filename": evidence_record.filename, "gp_section": evidence_record.gp_section}
+            )
+        except Exception:
+            pass  # Don't break upload if activity logging fails
         
         return {
             "id": evidence_record.id,

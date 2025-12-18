@@ -54,8 +54,12 @@ def register(user_data: UserSignup, db: Session = Depends(get_db)):
         
         logger.info(f"New user registered: {user_data.email}")
         
-        # Create and return access token with user.id
-        token = create_access_token({"sub": new_user.id})
+        # Create and return access token with user.id, email, and role
+        token = create_access_token({
+            "sub": str(new_user.id),
+            "email": new_user.email,
+            "role": new_user.role
+        })
         return TokenResponse(access_token=token)
     
     except Exception as e:
@@ -115,8 +119,27 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
     
     logger.info(f"User logged in: {user.email}")
     
-    # Create and return access token with user.id
-    token = create_access_token({"sub": user.id})
+    # Create and return access token with user.id, email, and role
+    token = create_access_token({
+        "sub": str(user.id),
+        "email": user.email,
+        "role": user.role
+    })
+    
+    # Log activity for admin analytics (after successful login)
+    try:
+        from app.modules.admin_analytics.helpers import log_user_activity
+        log_user_activity(db, user.id, "login")
+    except Exception:
+        pass  # Don't break login if analytics fails
+    
+    # Log activity for admin activity feed
+    try:
+        from app.modules.admin_activity.services import log_activity
+        log_activity(db, user=user, action="LOGIN")
+    except Exception:
+        pass  # Don't break login if activity logging fails
+    
     return TokenResponse(access_token=token)
 
 
@@ -155,8 +178,27 @@ def login_json(credentials: UserLogin, db: Session = Depends(get_db)):
     
     logger.info(f"User logged in: {user.email}")
     
-    # Create and return access token with user.id
-    token = create_access_token({"sub": user.id})
+    # Create and return access token with user.id, email, and role
+    token = create_access_token({
+        "sub": str(user.id),
+        "email": user.email,
+        "role": user.role
+    })
+    
+    # Log activity for admin analytics (after successful login)
+    try:
+        from app.modules.admin_analytics.helpers import log_user_activity
+        log_user_activity(db, user.id, "login")
+    except Exception:
+        pass  # Don't break login if analytics fails
+    
+    # Log activity for admin activity feed
+    try:
+        from app.modules.admin_activity.services import log_activity
+        log_activity(db, user=user, action="LOGIN")
+    except Exception:
+        pass  # Don't break login if activity logging fails
+    
     return TokenResponse(access_token=token)
 
 
@@ -251,8 +293,27 @@ def login_with_google(google_data: GoogleLogin, db: Session = Depends(get_db)):
             db.refresh(user)
         logger.info(f"User logged in via Google: {email}")
     
-        # Create and return access token with user.id
-        token = create_access_token({"sub": user.id})
+        # Create and return access token with user.id, email, and role
+        token = create_access_token({
+            "sub": str(user.id),
+            "email": user.email,
+            "role": user.role
+        })
+        
+        # Log activity for admin analytics (after successful login)
+        try:
+            from app.modules.admin_analytics.helpers import log_user_activity
+            log_user_activity(db, user.id, "login")
+        except Exception:
+            pass  # Don't break login if analytics fails
+        
+        # Log activity for admin activity feed
+        try:
+            from app.modules.admin_activity.services import log_activity
+            log_activity(db, user=user, action="LOGIN")
+        except Exception:
+            pass  # Don't break login if activity logging fails
+        
         return TokenResponse(access_token=token)
 
 
@@ -267,6 +328,10 @@ def get_current_user_info(user: User = Depends(get_current_user)):
         id=user.id,
         full_name=user.full_name,
         email=user.email,
-        created_at=user.created_at
+        role=user.role,
+        created_at=user.created_at,
+        subscription_plan=user.subscription_plan,
+        subscription_status=user.subscription_status,
+        subscription_expires_at=user.subscription_expires_at
     )
 

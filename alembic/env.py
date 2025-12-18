@@ -21,6 +21,8 @@ from app.modules.ai.models import LessonEvidence, LogEvidence, RegisterEvidence,
 from app.modules.lesson_plans.models import LessonPlan
 from app.modules.photo_library.models import PhotoEvidence
 from app.modules.evidence.models import Evidence
+from app.modules.admin_analytics.models import UserActivityLog
+from app.modules.admin_activity.models import AdminActivityLog
 
 # this is the Alembic Config object
 config = context.config

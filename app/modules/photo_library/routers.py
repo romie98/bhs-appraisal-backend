@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.modules.auth.models import User
 from app.services.auth_dependency import get_current_user
+from app.core.features import require_feature
 from app.modules.photo_library.models import PhotoEvidence
 from app.modules.photo_library.schemas import PhotoEvidenceResponse, PhotoEvidenceListItem
 from app.modules.photo_library.services import save_photo_file, extract_text_from_image, get_image_extension
@@ -25,10 +26,10 @@ router = APIRouter()
 @router.post("/upload", response_model=PhotoEvidenceResponse, status_code=status.HTTP_201_CREATED)
 async def upload_photo_evidence(
     file: UploadFile = File(...),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_feature("AI_OCR")),
     db: Session = Depends(get_db),
 ):
-    """Upload a photo, run OCR + AI, and store GP recommendations."""
+    """Upload a photo, run OCR + AI, and store GP recommendations. Requires AI_OCR feature (PRO or SCHOOL plan)."""
     try:
         ext = get_image_extension(file.filename)
         allowed = [".jpg", ".jpeg", ".png", ".heic"]
@@ -52,6 +53,20 @@ async def upload_photo_evidence(
             
             try:
                 ocr_text = extract_text_from_image(tmp_path)
+                
+                # Log AI OCR activity if successful
+                if ocr_text and ocr_text.strip():
+                    try:
+                        from app.modules.admin_activity.services import log_activity
+                        log_activity(
+                            db,
+                            user=current_user,
+                            action="AI_OCR",
+                            resource=file.filename,
+                            metadata={"text_length": len(ocr_text)}
+                        )
+                    except Exception:
+                        pass  # Don't break upload if activity logging fails
             finally:
                 # Clean up temp file
                 import os

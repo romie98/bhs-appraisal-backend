@@ -5,6 +5,7 @@ from typing import Dict, List, Optional
 from app.core.database import get_db
 from app.modules.auth.models import User
 from app.services.auth_dependency import get_current_user
+from app.core.features import require_feature
 from app.services.ai_service import (
     send_to_ai, extract_lesson_evidence, extract_log_evidence, 
     extract_register_evidence, extract_assessment_evidence, build_portfolio,
@@ -1105,10 +1106,12 @@ async def get_latest_appraisal_report(
 @router.get("/appraisal-report/{report_id}/pdf")
 async def export_appraisal_report_pdf(
     report_id: str,
+    user: User = Depends(require_feature("EXPORT_REPORTS")),
     db: Session = Depends(get_db)
 ):
     """
     Export an appraisal report as PDF.
+    Requires EXPORT_REPORTS feature (PREMIUM plan).
     """
     from reportlab.lib.pagesizes import letter
     from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer

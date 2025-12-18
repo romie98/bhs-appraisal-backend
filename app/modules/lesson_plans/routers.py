@@ -80,6 +80,20 @@ async def upload_lesson_plan(
         
         logger.info(f"Lesson plan uploaded: {db_lesson_plan.id} by teacher {current_user.id}")
         
+        # Log activity for admin analytics (after successful upload)
+        try:
+            from app.modules.admin_analytics.helpers import log_user_activity
+            log_user_activity(
+                db,
+                current_user.id,
+                "lesson_plan_create",
+                entity_type="lesson_plan",
+                entity_id=db_lesson_plan.id,
+                metadata={"title": db_lesson_plan.title}
+            )
+        except Exception:
+            pass  # Don't break upload if analytics fails
+        
         return db_lesson_plan
     
     except HTTPException:
@@ -117,6 +131,20 @@ async def create_lesson_plan_from_text(
         db.refresh(db_lesson_plan)
         
         logger.info(f"Lesson plan created from text: {db_lesson_plan.id} by teacher {current_user.id}")
+        
+        # Log activity for admin analytics (after successful creation)
+        try:
+            from app.modules.admin_analytics.helpers import log_user_activity
+            log_user_activity(
+                db,
+                current_user.id,
+                "lesson_plan_create",
+                entity_type="lesson_plan",
+                entity_id=db_lesson_plan.id,
+                metadata={"title": db_lesson_plan.title}
+            )
+        except Exception:
+            pass  # Don't break creation if analytics fails
         
         return db_lesson_plan
     

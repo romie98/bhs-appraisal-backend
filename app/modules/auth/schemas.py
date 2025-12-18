@@ -33,7 +33,11 @@ class UserResponse(BaseModel):
     id: str
     full_name: str
     email: str
+    role: str
     created_at: datetime
+    subscription_plan: str
+    subscription_status: str
+    subscription_expires_at: Optional[datetime] = None
     
     class Config:
         from_attributes = True

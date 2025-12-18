@@ -410,3 +410,6 @@ function EvidenceUploadForm({ gpSection, token, onUploadSuccess }) {
 - Modal z-index should be higher than other page elements
 - Image object-fit: contain prevents stretching while maintaining aspect ratio
 
+
+
+
