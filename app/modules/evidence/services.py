@@ -34,3 +34,5 @@ def can_upload_evidence(user: User, gp_section: str, db: Session) -> bool:
     # FREE users can upload up to 3 items per GP subsection
     return count < 3
 
+
+

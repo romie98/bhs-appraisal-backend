@@ -25,3 +25,5 @@ class UserActivityLog(Base):
         return f"<UserActivityLog(id={self.id}, user_id={self.user_id}, action_type={self.action_type})>"
 
 
+
+

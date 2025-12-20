@@ -30,3 +30,5 @@ class CancelResponse(BaseModel):
     """Response schema for subscription cancellation"""
     message: str
 
+
+

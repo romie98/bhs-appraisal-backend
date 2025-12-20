@@ -48,3 +48,5 @@ All existing users automatically have:
 - `subscription_status = "ACTIVE"`
 - `subscription_expires_at = NULL`
 
+
+

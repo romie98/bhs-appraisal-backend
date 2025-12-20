@@ -21,3 +21,5 @@ class AdminActivityResponse(BaseModel):
     """Activity feed response"""
     events: List[AdminActivityItem]
 
+
+

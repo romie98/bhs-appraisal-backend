@@ -20,3 +20,5 @@ class AdminActivityLog(Base):
     def __repr__(self):
         return f"<AdminActivityLog(id={self.id}, user_email={self.user_email}, action={self.action})>"
 
+
+
