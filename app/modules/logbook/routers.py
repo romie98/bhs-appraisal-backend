@@ -8,6 +8,7 @@ from datetime import datetime, date
 from app.core.database import get_db
 from app.modules.auth.models import User
 from app.services.auth_dependency import get_current_user
+from app.modules.subscriptions.guards import require_premium
 from app.modules.logbook.models import LogEntry, LogEntryType
 from app.modules.logbook.schemas import (
     LogEntryCreate,
@@ -105,9 +106,17 @@ async def get_log_entry(
 @router.post("/", response_model=LogEntryResponse, status_code=status.HTTP_201_CREATED)
 async def create_log_entry(
     entry: LogEntryCreate,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Create a new log entry"""
+    """
+    Create a new log entry.
+    
+    Requires premium subscription.
+    """
+    # Gate behind premium subscription
+    require_premium(current_user)
+    
     import uuid
     
     # Validate entry type

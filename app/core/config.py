@@ -20,6 +20,14 @@ class Settings(BaseSettings):
     # OpenAI
     OPENAI_API_KEY: Optional[str] = None
     
+    # Stripe
+    STRIPE_SECRET_KEY: Optional[str] = None
+    STRIPE_WEBHOOK_SECRET: Optional[str] = None
+    STRIPE_PRICE_PREMIUM: Optional[str] = None
+    
+    # Frontend
+    FRONTEND_URL: str = "http://localhost:5173"
+    
     model_config = SettingsConfigDict(
         env_file=".env",
         case_sensitive=True,

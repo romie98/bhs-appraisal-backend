@@ -92,6 +92,12 @@ from app.modules.account.routers import router as account_router
 app.include_router(account_router)
 
 # --------------------------------------------------
+# Subscriptions (Stripe webhooks)
+# --------------------------------------------------
+from app.modules.subscriptions.routers import router as subscriptions_router
+app.include_router(subscriptions_router, prefix="/subscriptions", tags=["Subscriptions"])
+
+# --------------------------------------------------
 # Admin analytics (ENV-GUARDED)
 # --------------------------------------------------
 if os.getenv("ENABLE_ADMIN", "false").lower() == "true":

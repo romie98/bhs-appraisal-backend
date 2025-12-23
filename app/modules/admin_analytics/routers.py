@@ -1,7 +1,8 @@
 """Admin analytics API router"""
 import logging
 from datetime import datetime, timedelta, timezone
-from fastapi import APIRouter, Depends, HTTPException, status
+from typing import Optional
+from fastapi import APIRouter, Depends, HTTPException, status, Body
 from sqlalchemy.orm import Session
 from sqlalchemy import func, distinct
 from app.core.database import get_db
@@ -188,6 +189,192 @@ async def get_recent_activity(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve recent activity"
         )
+
+
+# --------------------------------------------------
+# Subscription Management Endpoints
+# --------------------------------------------------
+
+@router.post("/users/{user_id}/grant-premium", response_model=dict)
+async def grant_premium_access(
+    user_id: str,
+    request: Optional[dict] = Body(default=None),
+    admin_user: User = Depends(require_admin_role),
+    db: Session = Depends(get_db)
+):
+    """
+    Grant premium access to a user.
+    
+    Requires ADMIN role and ENABLE_ADMIN=true.
+    
+    Sets:
+    - subscription_plan = "PREMIUM"
+    - subscription_status = "ACTIVE"
+    - subscription_expires_at = now + 30 days (or NULL for lifetime)
+    
+    Request body (optional):
+    {
+        "lifetime": false,  // If true, grants lifetime premium (no expiration)
+        "days": 30          // Number of days until expiration (ignored if lifetime=true)
+    }
+    
+    Args:
+        user_id: ID of the user to grant premium access to
+        request: Optional dict with "lifetime" (bool) and "days" (int) keys
+        admin_user: Admin user (from require_admin_role dependency)
+        db: Database session
+        
+    Returns:
+        Updated user information
+        
+    Raises:
+        HTTPException: 404 if user not found, 400 if invalid request
+    """
+    from app.modules.subscriptions.services import grant_premium_access
+    
+    # Parse request body (default to 30 days, not lifetime)
+    if request is None:
+        lifetime = False
+        days = 30
+    else:
+        lifetime = request.get("lifetime", False)
+        days = request.get("days", 30)
+    
+    # Validate request
+    if not lifetime and days < 1:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Days must be at least 1 if not lifetime"
+        )
+    
+    # Find user
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"User with id {user_id} not found"
+        )
+    
+    # Grant premium access
+    try:
+        updated_user = grant_premium_access(db, user, lifetime=lifetime, days=days)
+        
+        # Log admin action
+        try:
+            from app.modules.admin_activity.services import log_activity
+            log_activity(
+                db=db,
+                user=updated_user,
+                action="GRANT_PREMIUM",
+                resource=f"user:{user_id}",
+                metadata={
+                    "granted_by": admin_user.email,
+                    "lifetime": lifetime,
+                    "days": days if not lifetime else None,
+                    "expires_at": updated_user.subscription_expires_at.isoformat() if updated_user.subscription_expires_at else None
+                }
+            )
+        except Exception as e:
+            logger.warning(f"Failed to log admin activity: {e}")
+        
+        return {
+            "id": updated_user.id,
+            "email": updated_user.email,
+            "full_name": updated_user.full_name,
+            "subscription_plan": updated_user.subscription_plan,
+            "subscription_status": updated_user.subscription_status,
+            "subscription_expires_at": updated_user.subscription_expires_at.isoformat() if updated_user.subscription_expires_at else None,
+            "updated_at": updated_user.updated_at.isoformat()
+        }
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except Exception as e:
+        logger.error(f"Error granting premium access: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to grant premium access"
+        )
+
+
+@router.post("/users/{user_id}/revoke-premium", response_model=dict)
+async def revoke_premium_access(
+    user_id: str,
+    admin_user: User = Depends(require_admin_role),
+    db: Session = Depends(get_db)
+):
+    """
+    Revoke premium access from a user.
+    
+    Requires ADMIN role and ENABLE_ADMIN=true.
+    
+    Sets:
+    - subscription_plan = "FREE"
+    - subscription_status = "INACTIVE"
+    - subscription_expires_at = NULL
+    
+    Args:
+        user_id: ID of the user to revoke premium access from
+        admin_user: Admin user (from require_admin_role dependency)
+        db: Database session
+        
+    Returns:
+        Updated user information
+        
+    Raises:
+        HTTPException: 404 if user not found
+    """
+    from app.modules.subscriptions.services import revoke_premium_access
+    
+    # Find user
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"User with id {user_id} not found"
+        )
+    
+    # Revoke premium access
+    try:
+        updated_user = revoke_premium_access(db, user)
+        
+        # Log admin action
+        try:
+            from app.modules.admin_activity.services import log_activity
+            log_activity(
+                db=db,
+                user=updated_user,
+                action="REVOKE_PREMIUM",
+                resource=f"user:{user_id}",
+                metadata={
+                    "revoked_by": admin_user.email,
+                    "previous_plan": user.subscription_plan,
+                    "previous_status": user.subscription_status
+                }
+            )
+        except Exception as e:
+            logger.warning(f"Failed to log admin activity: {e}")
+        
+        return {
+            "id": updated_user.id,
+            "email": updated_user.email,
+            "full_name": updated_user.full_name,
+            "subscription_plan": updated_user.subscription_plan,
+            "subscription_status": updated_user.subscription_status,
+            "subscription_expires_at": None,
+            "updated_at": updated_user.updated_at.isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Error revoking premium access: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to revoke premium access"
+        )
+
+
+
 
 
 

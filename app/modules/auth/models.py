@@ -2,10 +2,6 @@
 from sqlalchemy import Column, String, Integer, DateTime
 from sqlalchemy.sql import func
 from app.core.database import Base
-from app.modules.auth.constants import (
-    SUBSCRIPTION_PLAN_FREE,
-    SUBSCRIPTION_STATUS_ACTIVE
-)
 import uuid
 
 
@@ -18,13 +14,14 @@ class User(Base):
     email = Column(String(255), unique=True, index=True, nullable=False)
     password_hash = Column(String(255), nullable=True)  # Nullable for Google-only users
     google_id = Column(String(255), unique=True, nullable=True, index=True)
+    role = Column(String(50), nullable=False, server_default="USER")  # Default role is USER, can be ADMIN
+    subscription_plan = Column(String(50), nullable=False, server_default="FREE")
+    subscription_status = Column(String(50), nullable=False, server_default="INACTIVE")
+    subscription_expires_at = Column(DateTime(timezone=True), nullable=True)
+    stripe_customer_id = Column(String(255), nullable=True, unique=True, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
-    role = Column(String, nullable=False, default="TEACHER")
-    subscription_plan = Column(String(50), nullable=False, default=SUBSCRIPTION_PLAN_FREE)
-    subscription_status = Column(String(50), nullable=False, default=SUBSCRIPTION_STATUS_ACTIVE)
-    subscription_expires_at = Column(DateTime(timezone=True), nullable=True)
-    
+
     def __repr__(self):
         return f"<User(id={self.id}, email={self.email})>"
 

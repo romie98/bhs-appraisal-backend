@@ -192,3 +192,6 @@ ALTER TABLE photo_evidence ADD COLUMN IF NOT EXISTS supabase_url VARCHAR(1000);
 
 
 
+
+
+
