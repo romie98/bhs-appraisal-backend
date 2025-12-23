@@ -2,6 +2,7 @@
 
 import logging
 import os
+import subprocess
 from dotenv import load_dotenv
 
 from fastapi import FastAPI, Depends
@@ -26,6 +27,42 @@ from app.modules.evidence.routers import router as evidence_router
 
 # Load environment variables
 load_dotenv()
+
+# --------------------------------------------------
+# Logging (initialize early for migration logging)
+# --------------------------------------------------
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
+logger = logging.getLogger(__name__)
+
+# --------------------------------------------------
+# Run migrations on startup (if enabled)
+# --------------------------------------------------
+if os.getenv("RUN_MIGRATIONS_ON_STARTUP", "").lower() == "true":
+    try:
+        logger.info("Running Alembic migrations on startup...")
+        result = subprocess.run(
+            ["python", "-m", "alembic", "upgrade", "head"],
+            check=True,
+            capture_output=True,
+            text=True
+        )
+        logger.info("Migrations completed successfully.")
+        if result.stdout:
+            logger.debug(f"Migration output: {result.stdout}")
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Migration failed with exit code {e.returncode}")
+        if e.stdout:
+            logger.error(f"Migration stdout: {e.stdout}")
+        if e.stderr:
+            logger.error(f"Migration stderr: {e.stderr}")
+        # Don't crash the app - log the error and continue
+        # This allows the app to start even if migrations fail
+    except Exception as e:
+        logger.error(f"Unexpected error running migrations: {e}", exc_info=True)
+        # Don't crash the app - log the error and continue
 
 # --------------------------------------------------
 # Create FastAPI app FIRST
@@ -56,14 +93,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-# --------------------------------------------------
-# Logging
-# --------------------------------------------------
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-)
-logger = logging.getLogger(__name__)
 
 # --------------------------------------------------
 # Database
