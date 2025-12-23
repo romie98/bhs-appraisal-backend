@@ -2,7 +2,6 @@
 
 import logging
 import os
-import subprocess
 from dotenv import load_dotenv
 
 from fastapi import FastAPI, Depends
@@ -38,58 +37,10 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # --------------------------------------------------
-# TEMPORARY: Stamp database to HEAD (mark migrations as applied)
+# Migrations: Run manually via alembic CLI, not on startup
 # --------------------------------------------------
-# This creates alembic_version row and marks all migrations as applied
-# WITHOUT actually running the migrations
-try:
-    logger.info("Stamping database to HEAD (marking migrations as applied)...")
-    result = subprocess.run(
-        ["python", "-m", "alembic", "stamp", "head"],
-        check=True,
-        capture_output=True,
-        text=True
-    )
-    logger.info("Database stamped successfully.")
-    if result.stdout:
-        logger.debug(f"Stamp output: {result.stdout}")
-except subprocess.CalledProcessError as e:
-    logger.error(f"Stamp failed with exit code {e.returncode}")
-    if e.stdout:
-        logger.error(f"Stamp stdout: {e.stdout}")
-    if e.stderr:
-        logger.error(f"Stamp stderr: {e.stderr}")
-    # Don't crash the app - log the error and continue
-except Exception as e:
-    logger.error(f"Unexpected error stamping database: {e}", exc_info=True)
-    # Don't crash the app - log the error and continue
-
-# --------------------------------------------------
-# DISABLED: Run migrations on startup (if enabled)
-# --------------------------------------------------
-# if os.getenv("RUN_MIGRATIONS_ON_STARTUP", "").lower() == "true":
-#     try:
-#         logger.info("Running Alembic migrations on startup...")
-#         result = subprocess.run(
-#             ["python", "-m", "alembic", "upgrade", "head"],
-#             check=True,
-#             capture_output=True,
-#             text=True
-#         )
-#         logger.info("Migrations completed successfully.")
-#         if result.stdout:
-#             logger.debug(f"Migration output: {result.stdout}")
-#     except subprocess.CalledProcessError as e:
-#         logger.error(f"Migration failed with exit code {e.returncode}")
-#         if e.stdout:
-#             logger.error(f"Migration stdout: {e.stdout}")
-#         if e.stderr:
-#             logger.error(f"Migration stderr: {e.stderr}")
-#         # Don't crash the app - log the error and continue
-#         # This allows the app to start even if migrations fail
-#     except Exception as e:
-#         logger.error(f"Unexpected error running migrations: {e}", exc_info=True)
-#         # Don't crash the app - log the error and continue
+# Migrations should be run manually using: python -m alembic upgrade head
+# Automatic migrations on startup are disabled to prevent issues
 
 # --------------------------------------------------
 # Create FastAPI app FIRST
