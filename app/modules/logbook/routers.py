@@ -31,7 +31,8 @@ async def list_log_entries(
     db: Session = Depends(get_db)
 ):
     """List log entries with optional filtering and search"""
-    query = db.query(LogEntry)
+    # Filter by current user to ensure data isolation
+    query = db.query(LogEntry).filter(LogEntry.user_id == current_user.id)
 
     # Apply filters
     if entry_type:
@@ -81,10 +82,15 @@ async def list_log_entries(
 @router.get("/{id}", response_model=LogEntryResponse)
 async def get_log_entry(
     id: UUID,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Get a single log entry by ID"""
-    entry = db.query(LogEntry).filter(LogEntry.id == str(id)).first()
+    # Filter by current user to ensure data isolation
+    entry = db.query(LogEntry).filter(
+        LogEntry.id == str(id),
+        LogEntry.user_id == current_user.id
+    ).first()
     
     if not entry:
         raise HTTPException(
@@ -148,9 +154,10 @@ async def create_log_entry(
                 detail="Class not found"
             )
 
-    # Create log entry
+    # Create log entry with user_id for data isolation
     db_entry = LogEntry(
         id=str(uuid.uuid4()),
+        user_id=current_user.id,
         title=entry.title,
         content=entry.content,
         entry_type=entry_type_enum,
@@ -170,10 +177,15 @@ async def create_log_entry(
 async def update_log_entry(
     id: UUID,
     entry_update: LogEntryUpdate,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Update a log entry"""
-    db_entry = db.query(LogEntry).filter(LogEntry.id == str(id)).first()
+    # Filter by current user to ensure data isolation
+    db_entry = db.query(LogEntry).filter(
+        LogEntry.id == str(id),
+        LogEntry.user_id == current_user.id
+    ).first()
     
     if not db_entry:
         raise HTTPException(
@@ -233,10 +245,15 @@ async def update_log_entry(
 @router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_log_entry(
     id: UUID,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Delete a log entry"""
-    db_entry = db.query(LogEntry).filter(LogEntry.id == str(id)).first()
+    # Filter by current user to ensure data isolation
+    db_entry = db.query(LogEntry).filter(
+        LogEntry.id == str(id),
+        LogEntry.user_id == current_user.id
+    ).first()
     
     if not db_entry:
         raise HTTPException(

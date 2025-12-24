@@ -160,3 +160,5 @@ require_premium(user_admin)  # Passes (admin bypass)
 - **Guard not yet attached**: The guard function is ready but not yet used in routes (as requested)
 
 
+
+

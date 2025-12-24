@@ -22,6 +22,7 @@ class LogEntry(Base):
     __tablename__ = "log_entries"
 
     id = Column(String(36), primary_key=True, index=True)
+    user_id = Column(String(36), ForeignKey("users.id"), nullable=False, index=True)
     title = Column(String(255), nullable=True)
     content = Column(Text, nullable=False)
     entry_type = Column(SQLEnum(LogEntryType), nullable=False)
@@ -32,6 +33,7 @@ class LogEntry(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
     # Relationships
+    user = relationship("User", backref="log_entries")
     student = relationship("Student", backref="log_entries")
     class_obj = relationship("Class", backref="log_entries")
 
