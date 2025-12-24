@@ -22,65 +22,20 @@ router = APIRouter()
 @router.get("/", response_model=List[LogEntryResponse])
 async def list_log_entries(
     current_user: User = Depends(get_current_user),
-    entry_type: Optional[str] = Query(None, description="Filter by entry type"),
-    class_id: Optional[UUID] = Query(None, description="Filter by class ID"),
-    student_id: Optional[UUID] = Query(None, description="Filter by student ID"),
-    date_from: Optional[date] = Query(None, description="Filter entries from this date"),
-    date_to: Optional[date] = Query(None, description="Filter entries to this date"),
-    search: Optional[str] = Query(None, description="Search in title and content"),
     db: Session = Depends(get_db)
 ):
-    """List log entries with optional filtering and search"""
-    # Filter by current user to ensure data isolation
-    # Explicitly filter out NULL user_id entries (legacy entries before migration)
-    query = db.query(LogEntry).filter(
-        LogEntry.user_id == current_user.id,
-        LogEntry.user_id.isnot(None)
+    """List log entries - scoped to current user only"""
+    # Gate behind premium subscription
+    require_premium(current_user)
+    
+    # HARD filter: Only return entries belonging to current user
+    # No OR conditions, no NULL checks, no joins that reintroduce rows
+    return (
+        db.query(LogEntry)
+        .filter(LogEntry.user_id == current_user.id)
+        .order_by(LogEntry.created_at.desc())
+        .all()
     )
-
-    # Apply filters
-    if entry_type:
-        try:
-            entry_type_enum = LogEntryType(entry_type)
-            query = query.filter(LogEntry.entry_type == entry_type_enum)
-        except ValueError:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid entry type: {entry_type}"
-            )
-
-    if class_id:
-        query = query.filter(LogEntry.class_id == str(class_id))
-
-    if student_id:
-        query = query.filter(LogEntry.student_id == str(student_id))
-
-    if date_from:
-        query = query.filter(LogEntry.date >= datetime.combine(date_from, datetime.min.time()))
-
-    if date_to:
-        query = query.filter(LogEntry.date <= datetime.combine(date_to, datetime.max.time()))
-
-    if search:
-        search_term = f"%{search}%"
-        query = query.filter(
-            or_(
-                LogEntry.title.ilike(search_term),
-                LogEntry.content.ilike(search_term)
-            )
-        )
-
-    # Order by newest first
-    entries = query.order_by(LogEntry.date.desc(), LogEntry.created_at.desc()).all()
-    # Eager load relationships
-    for entry in entries:
-        if entry.student_id:
-            from app.modules.students.models import Student
-            entry.student = db.query(Student).filter(Student.id == entry.student_id).first()
-        if entry.class_id:
-            from app.modules.classes.models import Class
-            entry.class_obj = db.query(Class).filter(Class.id == entry.class_id).first()
-    return entries
 
 
 @router.get("/{id}", response_model=LogEntryResponse)
