@@ -44,7 +44,7 @@ async def get_log_entry(
     # HARD filter: Only return entry if it belongs to current user
     # No OR conditions, no NULL checks, no joins
     entry = db.query(LogEntry).filter(
-        LogEntry.id == str(id),
+        LogEntry.id == id,
         LogEntry.user_id == current_user.id
     ).first()
     
@@ -139,7 +139,7 @@ async def update_log_entry(
     """Update a log entry - scoped to current user only"""
     # HARD filter: Only update entry if it belongs to current user
     db_entry = db.query(LogEntry).filter(
-        LogEntry.id == str(id),
+        LogEntry.id == id,
         LogEntry.user_id == current_user.id
     ).first()
     
@@ -207,7 +207,7 @@ async def delete_log_entry(
     """Delete a log entry - scoped to current user only"""
     # HARD filter: Only delete entry if it belongs to current user
     db_entry = db.query(LogEntry).filter(
-        LogEntry.id == str(id),
+        LogEntry.id == id,
         LogEntry.user_id == current_user.id
     ).first()
     
