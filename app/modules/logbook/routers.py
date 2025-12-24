@@ -24,12 +24,8 @@ async def list_log_entries(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """List log entries - scoped to current user only"""
-    # Gate behind premium subscription
     require_premium(current_user)
-    
-    # HARD filter: Only return entries belonging to current user
-    # No OR conditions, no NULL checks, no joins that reintroduce rows
+
     return (
         db.query(LogEntry)
         .filter(LogEntry.user_id == current_user.id)
