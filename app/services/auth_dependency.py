@@ -4,6 +4,7 @@ from fastapi.security import OAuth2PasswordBearer
 from jose import jwt, JWTError
 from sqlalchemy.orm import Session
 import os
+import uuid
 from app.core.database import get_db
 from app.modules.auth.models import User
 from app.core.config import settings
@@ -44,18 +45,30 @@ def get_current_user(
     
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id: str = payload.get("sub")
-        if user_id is None:
+        user_id_str = payload.get("sub")
+        if user_id_str is None:
             raise credentials_exception
-    except JWTError:
+        # Convert string to UUID for proper database comparison
+        user_id = uuid.UUID(user_id_str)
+    except (JWTError, ValueError) as e:
+        # ValueError raised if user_id_str is not a valid UUID
         raise credentials_exception
     
-    user = db.query(User).filter(User.id == user_id).first()
+    # Query with UUID directly - SQLAlchemy will handle type conversion
+    # If database column is UUID type, this works directly
+    # If database column is String, SQLAlchemy converts UUID to string automatically
+    user = db.query(User).filter(User.id == str(user_id)).first()
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User not found"
         )
+    
+    # Ensure current_user.id is a UUID object for consistent comparisons
+    # This allows LogEntry.user_id == current_user.id to work correctly
+    # even when database columns are UUID type
+    user.id = user_id
+    
     return user
 
 
