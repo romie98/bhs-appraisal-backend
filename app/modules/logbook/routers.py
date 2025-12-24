@@ -43,8 +43,9 @@ async def get_log_entry(
     """Get a single log entry by ID - scoped to current user only"""
     # HARD filter: Only return entry if it belongs to current user
     # No OR conditions, no NULL checks, no joins
+    # Convert UUID to string to match String(36) column type in model
     entry = db.query(LogEntry).filter(
-        LogEntry.id == id,
+        LogEntry.id == str(id),
         LogEntry.user_id == current_user.id
     ).first()
     
@@ -138,8 +139,9 @@ async def update_log_entry(
 ):
     """Update a log entry - scoped to current user only"""
     # HARD filter: Only update entry if it belongs to current user
+    # Convert UUID to string to match String(36) column type in model
     db_entry = db.query(LogEntry).filter(
-        LogEntry.id == id,
+        LogEntry.id == str(id),
         LogEntry.user_id == current_user.id
     ).first()
     
@@ -206,8 +208,9 @@ async def delete_log_entry(
 ):
     """Delete a log entry - scoped to current user only"""
     # HARD filter: Only delete entry if it belongs to current user
+    # Convert UUID to string to match String(36) column type in model
     db_entry = db.query(LogEntry).filter(
-        LogEntry.id == id,
+        LogEntry.id == str(id),
         LogEntry.user_id == current_user.id
     ).first()
     
