@@ -44,13 +44,12 @@ async def get_log_entry(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Get a single log entry by ID"""
-    # Filter by current user to ensure data isolation
-    # Explicitly filter out NULL user_id entries (legacy entries before migration)
+    """Get a single log entry by ID - scoped to current user only"""
+    # HARD filter: Only return entry if it belongs to current user
+    # No OR conditions, no NULL checks, no joins
     entry = db.query(LogEntry).filter(
         LogEntry.id == str(id),
-        LogEntry.user_id == current_user.id,
-        LogEntry.user_id.isnot(None)
+        LogEntry.user_id == current_user.id
     ).first()
     
     if not entry:
@@ -141,13 +140,11 @@ async def update_log_entry(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Update a log entry"""
-    # Filter by current user to ensure data isolation
-    # Explicitly filter out NULL user_id entries (legacy entries before migration)
+    """Update a log entry - scoped to current user only"""
+    # HARD filter: Only update entry if it belongs to current user
     db_entry = db.query(LogEntry).filter(
         LogEntry.id == str(id),
-        LogEntry.user_id == current_user.id,
-        LogEntry.user_id.isnot(None)
+        LogEntry.user_id == current_user.id
     ).first()
     
     if not db_entry:
@@ -211,13 +208,11 @@ async def delete_log_entry(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Delete a log entry"""
-    # Filter by current user to ensure data isolation
-    # Explicitly filter out NULL user_id entries (legacy entries before migration)
+    """Delete a log entry - scoped to current user only"""
+    # HARD filter: Only delete entry if it belongs to current user
     db_entry = db.query(LogEntry).filter(
         LogEntry.id == str(id),
-        LogEntry.user_id == current_user.id,
-        LogEntry.user_id.isnot(None)
+        LogEntry.user_id == current_user.id
     ).first()
     
     if not db_entry:
