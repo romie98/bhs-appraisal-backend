@@ -32,7 +32,11 @@ async def list_log_entries(
 ):
     """List log entries with optional filtering and search"""
     # Filter by current user to ensure data isolation
-    query = db.query(LogEntry).filter(LogEntry.user_id == current_user.id)
+    # Explicitly filter out NULL user_id entries (legacy entries before migration)
+    query = db.query(LogEntry).filter(
+        LogEntry.user_id == current_user.id,
+        LogEntry.user_id.isnot(None)
+    )
 
     # Apply filters
     if entry_type:
@@ -87,9 +91,11 @@ async def get_log_entry(
 ):
     """Get a single log entry by ID"""
     # Filter by current user to ensure data isolation
+    # Explicitly filter out NULL user_id entries (legacy entries before migration)
     entry = db.query(LogEntry).filter(
         LogEntry.id == str(id),
-        LogEntry.user_id == current_user.id
+        LogEntry.user_id == current_user.id,
+        LogEntry.user_id.isnot(None)
     ).first()
     
     if not entry:
@@ -182,9 +188,11 @@ async def update_log_entry(
 ):
     """Update a log entry"""
     # Filter by current user to ensure data isolation
+    # Explicitly filter out NULL user_id entries (legacy entries before migration)
     db_entry = db.query(LogEntry).filter(
         LogEntry.id == str(id),
-        LogEntry.user_id == current_user.id
+        LogEntry.user_id == current_user.id,
+        LogEntry.user_id.isnot(None)
     ).first()
     
     if not db_entry:
@@ -250,9 +258,11 @@ async def delete_log_entry(
 ):
     """Delete a log entry"""
     # Filter by current user to ensure data isolation
+    # Explicitly filter out NULL user_id entries (legacy entries before migration)
     db_entry = db.query(LogEntry).filter(
         LogEntry.id == str(id),
-        LogEntry.user_id == current_user.id
+        LogEntry.user_id == current_user.id,
+        LogEntry.user_id.isnot(None)
     ).first()
     
     if not db_entry:
