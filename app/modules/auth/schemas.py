@@ -1,7 +1,8 @@
 """Authentication Pydantic schemas"""
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, ConfigDict
 from typing import Optional
 from datetime import datetime
+from uuid import UUID
 
 
 class UserSignup(BaseModel):
@@ -30,7 +31,9 @@ class TokenResponse(BaseModel):
 
 class UserResponse(BaseModel):
     """Schema for user response"""
-    id: str
+    model_config = ConfigDict(from_attributes=True)
+    
+    id: UUID
     full_name: str
     email: str
     role: str
@@ -38,8 +41,5 @@ class UserResponse(BaseModel):
     subscription_plan: str
     subscription_status: str
     subscription_expires_at: Optional[datetime] = None
-    
-    class Config:
-        from_attributes = True
 
 
