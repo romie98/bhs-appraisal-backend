@@ -317,7 +317,7 @@ def login_with_google(google_data: GoogleLogin, db: Session = Depends(get_db)):
         return TokenResponse(access_token=token)
 
 
-@router.get("/me", response_model=UserResponse)
+@router.get("/me", response_model=UserResponse, dependencies=[Depends(get_current_user)])
 def get_current_user_info(user: User = Depends(get_current_user)):
     """
     Get current user information.
