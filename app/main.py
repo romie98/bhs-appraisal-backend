@@ -52,21 +52,20 @@ app = FastAPI(
 )
 
 # --------------------------------------------------
-# CORS (SINGLE, CORRECT CONFIG)
+# CORS (Environment-driven, safe)
 # --------------------------------------------------
-FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
-
-allowed_origins = [
-    FRONTEND_URL,
+origins = [
+    "http://localhost:3000",
     "http://localhost:5173",
-    "http://127.0.0.1:5173",
-    "https://www.mytportfolio.com",
-    "https://mytportfolio.com",
 ]
+
+frontend_url = os.getenv("FRONTEND_URL")
+if frontend_url:
+    origins.append(frontend_url)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allowed_origins,
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
