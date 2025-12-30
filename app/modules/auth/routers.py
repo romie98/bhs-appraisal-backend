@@ -1,7 +1,7 @@
 """Authentication API router"""
 import logging
 import os
-from fastapi import APIRouter, HTTPException, Depends, status
+from fastapi import APIRouter, HTTPException, Depends, status, Response
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from app.core.database import get_db
@@ -335,3 +335,7 @@ def get_current_user_info(user: User = Depends(get_current_user)):
         subscription_expires_at=user.subscription_expires_at
     )
 
+
+@router.options("/{path:path}")
+async def auth_options_handler(path: str):
+    return Response(status_code=200)
