@@ -59,9 +59,12 @@ origins = [
     "http://localhost:5173",
 ]
 
-frontend_url = os.getenv("FRONTEND_URL")
-if frontend_url:
-    origins.append(frontend_url)
+# Allow multiple frontend URLs safely
+frontend_urls = os.getenv("FRONTEND_URLS")
+if frontend_urls:
+    origins.extend([url.strip() for url in frontend_urls.split(",")])
+
+print("CORS ALLOWED ORIGINS:", origins)
 
 app.add_middleware(
     CORSMiddleware,
