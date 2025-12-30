@@ -51,11 +51,8 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# --------------------------------------------------
-# Global OPTIONS handler (must be before routers)
-# --------------------------------------------------
 @app.options("/{path:path}")
-async def global_options_handler(request: Request, path: str):
+async def global_options_handler(path: str):
     return Response(status_code=200)
 
 # --------------------------------------------------
