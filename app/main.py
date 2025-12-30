@@ -4,7 +4,7 @@ import logging
 import os
 from dotenv import load_dotenv
 
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
@@ -50,6 +50,13 @@ app = FastAPI(
     description="API for managing students, attendance register, and assessments",
     version="1.0.0",
 )
+
+# --------------------------------------------------
+# Global OPTIONS handler (must be before routers)
+# --------------------------------------------------
+@app.options("/{path:path}")
+async def global_options_handler(request: Request, path: str):
+    return Response(status_code=200)
 
 # --------------------------------------------------
 # CORS (Environment-driven, safe)
