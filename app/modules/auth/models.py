@@ -1,5 +1,5 @@
 """User authentication model"""
-from sqlalchemy import Column, String, Integer, DateTime
+from sqlalchemy import Column, String, Integer, DateTime, Boolean
 from sqlalchemy.sql import func
 from app.core.database import Base
 import uuid
@@ -19,6 +19,8 @@ class User(Base):
     subscription_status = Column(String(50), nullable=False, server_default="INACTIVE")
     subscription_expires_at = Column(DateTime(timezone=True), nullable=True)
     stripe_customer_id = Column(String(255), nullable=True, unique=True, index=True)
+    admin_premium_override = Column(Boolean, nullable=False, server_default="false")
+    admin_premium_expires_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 

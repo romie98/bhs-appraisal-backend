@@ -5,16 +5,58 @@ from app.modules.auth.models import User
 from app.modules.auth.constants import SUBSCRIPTION_PLAN_FREE
 
 
+def has_premium_access(user: User) -> bool:
+    """
+    Single source of truth for premium access checking.
+    
+    Checks premium access in this order:
+    1. Stripe subscription (if user has stripe_customer_id and status is ACTIVE)
+    2. Admin premium override (if admin_premium_override is True and not expired)
+    
+    Args:
+        user: User object to check
+        
+    Returns:
+        bool: True if user has premium access, False otherwise
+    """
+    # Check Stripe subscription first (source of truth for paying users)
+    if user.stripe_customer_id and user.subscription_status == "ACTIVE":
+        # Check if subscription has expired
+        if user.subscription_expires_at is not None:
+            now_utc = datetime.now(timezone.utc)
+            expires_at = user.subscription_expires_at
+            if expires_at.tzinfo is None:
+                expires_at = expires_at.replace(tzinfo=timezone.utc)
+            if expires_at < now_utc:
+                # Stripe subscription expired, check admin override
+                pass
+            else:
+                return True
+        else:
+            # Active Stripe subscription with no expiration
+            return True
+    
+    # Check admin premium override
+    if user.admin_premium_override:
+        if user.admin_premium_expires_at is None:
+            # Admin override granted indefinitely
+            return True
+        # Check if admin override has expired
+        now_utc = datetime.now(timezone.utc)
+        expires_at = user.admin_premium_expires_at
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+        if expires_at > now_utc:
+            return True
+    
+    return False
+
+
 def require_premium(user: User) -> None:
     """
     Guard function to ensure user has active premium subscription.
     
-    This function enforces that ONLY Stripe webhooks can grant premium access.
-    Users must have:
-    - subscription_plan != "FREE" (i.e., PREMIUM, PRO, SCHOOL, etc.)
-    - subscription_status == "ACTIVE"
-    - subscription_expires_at is either NULL or in the future
-    
+    Uses has_premium_access() as the single source of truth for premium checking.
     Admins (user.role == "ADMIN") can bypass premium requirements.
     
     Args:
@@ -27,35 +69,13 @@ def require_premium(user: User) -> None:
     if user.role == "ADMIN":
         return
     
-    # Check if user has premium plan (any plan that is not FREE)
-    if user.subscription_plan == SUBSCRIPTION_PLAN_FREE:
+    # Use single source of truth function
+    if not has_premium_access(user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Premium subscription required"
         )
-    
-    # Check if subscription is active
-    if user.subscription_status != "ACTIVE":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Premium subscription inactive"
-        )
-    
-    # Check if subscription has expired
-    if user.subscription_expires_at is not None:
-        # Use UTC for comparison
-        now_utc = datetime.now(timezone.utc)
-        # Ensure subscription_expires_at is timezone-aware for comparison
-        expires_at = user.subscription_expires_at
-        if expires_at.tzinfo is None:
-            # If naive datetime, assume UTC
-            expires_at = expires_at.replace(tzinfo=timezone.utc)
-        
-        if expires_at < now_utc:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Premium subscription expired"
-            )
+
 
 
 

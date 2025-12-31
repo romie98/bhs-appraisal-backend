@@ -1,7 +1,7 @@
 """Admin analytics API router"""
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, status, Body
 from sqlalchemy.orm import Session
 from sqlalchemy import func, distinct
@@ -17,8 +17,11 @@ from app.modules.admin_analytics.schemas import (
     AdminActivityResponse,
     ActivitySummaryResponse,
     RecentActivityItem,
-    RecentActivityResponse
+    RecentActivityResponse,
+    AdminUserListItem
 )
+from app.modules.subscriptions.schemas import AdminPremiumResponse
+from app.modules.subscriptions.guards import has_premium_access
 
 logger = logging.getLogger(__name__)
 
@@ -192,10 +195,61 @@ async def get_recent_activity(
 
 
 # --------------------------------------------------
+# User Management Endpoints
+# --------------------------------------------------
+
+@router.get("/users", response_model=List[AdminUserListItem])
+async def list_users(
+    admin_user: User = Depends(require_admin_role),
+    db: Session = Depends(get_db)
+):
+    """
+    List all users for admin dashboard.
+    
+    Requires ADMIN role and ENABLE_ADMIN=true.
+    
+    Returns a list of users with subscription and admin override information.
+    Does NOT return sensitive data like password hashes.
+    
+    Returns:
+        List of AdminUserListItem with user information
+        
+    Raises:
+        HTTPException: 403 if user is not admin
+    """
+    try:
+        # Query all users, ordered by created_at DESC
+        users = db.query(User).order_by(User.created_at.desc()).all()
+        
+        # Return only the specified fields
+        return [
+            AdminUserListItem(
+                id=str(user.id),  # Convert UUID to string if needed
+                full_name=user.full_name,
+                email=user.email,
+                role=user.role,
+                subscription_plan=user.subscription_plan,
+                subscription_status=user.subscription_status,
+                stripe_customer_id=user.stripe_customer_id,
+                admin_premium_override=bool(user.admin_premium_override),  # Ensure boolean
+                admin_premium_expires_at=user.admin_premium_expires_at,
+                created_at=user.created_at
+            )
+            for user in users
+        ]
+    except Exception as e:
+        logger.error(f"Error listing users: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve users"
+        )
+
+
+# --------------------------------------------------
 # Subscription Management Endpoints
 # --------------------------------------------------
 
-@router.post("/users/{user_id}/grant-premium", response_model=dict)
+@router.post("/users/{user_id}/grant-premium", response_model=AdminPremiumResponse)
 async def grant_premium_access(
     user_id: str,
     request: Optional[dict] = Body(default=None),
@@ -203,49 +257,34 @@ async def grant_premium_access(
     db: Session = Depends(get_db)
 ):
     """
-    Grant premium access to a user.
+    Grant premium access to a user via admin override.
     
     Requires ADMIN role and ENABLE_ADMIN=true.
     
-    Sets:
-    - subscription_plan = "PREMIUM"
-    - subscription_status = "ACTIVE"
-    - subscription_expires_at = now + 30 days (or NULL for lifetime)
+    IMPORTANT: Cannot modify users with Stripe subscriptions.
+    Only sets admin_premium_override fields, does NOT touch:
+    - subscription_plan
+    - subscription_status
+    - subscription_expires_at
+    - stripe_customer_id
     
     Request body (optional):
     {
-        "lifetime": false,  // If true, grants lifetime premium (no expiration)
-        "days": 30          // Number of days until expiration (ignored if lifetime=true)
+        "expires_at": "2024-12-31T23:59:59Z"  // Optional ISO datetime. If omitted, grants indefinitely.
     }
     
     Args:
         user_id: ID of the user to grant premium access to
-        request: Optional dict with "lifetime" (bool) and "days" (int) keys
+        request: Optional dict with "expires_at" (ISO datetime string)
         admin_user: Admin user (from require_admin_role dependency)
         db: Database session
         
     Returns:
-        Updated user information
+        AdminPremiumResponse with premium status
         
     Raises:
-        HTTPException: 404 if user not found, 400 if invalid request
+        HTTPException: 404 if user not found, 400 if user has Stripe subscription
     """
-    from app.modules.subscriptions.services import grant_premium_access
-    
-    # Parse request body (default to 30 days, not lifetime)
-    if request is None:
-        lifetime = False
-        days = 30
-    else:
-        lifetime = request.get("lifetime", False)
-        days = request.get("days", 30)
-    
-    # Validate request
-    if not lifetime and days < 1:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Days must be at least 1 if not lifetime"
-        )
     
     # Find user
     user = db.query(User).filter(User.id == user_id).first()
@@ -255,65 +294,83 @@ async def grant_premium_access(
             detail=f"User with id {user_id} not found"
         )
     
-    # Grant premium access
+    # SECURITY: Reject if user has Stripe subscription
+    if user.stripe_customer_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Stripe subscriptions cannot be modified by admin"
+        )
+    
+    # Parse request body
+    expires_at = None
+    if request and "expires_at" in request:
+        try:
+            expires_at_str = request["expires_at"]
+            if expires_at_str:
+                expires_at = datetime.fromisoformat(expires_at_str.replace("Z", "+00:00"))
+        except (ValueError, AttributeError) as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid expires_at format: {str(e)}"
+            )
+    
+    # Grant admin premium override
     try:
-        updated_user = grant_premium_access(db, user, lifetime=lifetime, days=days)
+        user.admin_premium_override = True
+        user.admin_premium_expires_at = expires_at
+        user.updated_at = datetime.now(timezone.utc)
+        
+        db.commit()
+        db.refresh(user)
         
         # Log admin action
         try:
             from app.modules.admin_activity.services import log_activity
             log_activity(
                 db=db,
-                user=updated_user,
-                action="GRANT_PREMIUM",
+                user=user,
+                action="GRANT_ADMIN_PREMIUM",
                 resource=f"user:{user_id}",
                 metadata={
                     "granted_by": admin_user.email,
-                    "lifetime": lifetime,
-                    "days": days if not lifetime else None,
-                    "expires_at": updated_user.subscription_expires_at.isoformat() if updated_user.subscription_expires_at else None
+                    "expires_at": expires_at.isoformat() if expires_at else None
                 }
             )
         except Exception as e:
             logger.warning(f"Failed to log admin activity: {e}")
         
-        return {
-            "id": updated_user.id,
-            "email": updated_user.email,
-            "full_name": updated_user.full_name,
-            "subscription_plan": updated_user.subscription_plan,
-            "subscription_status": updated_user.subscription_status,
-            "subscription_expires_at": updated_user.subscription_expires_at.isoformat() if updated_user.subscription_expires_at else None,
-            "updated_at": updated_user.updated_at.isoformat()
-        }
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
+        # Return response
+        return AdminPremiumResponse(
+            user_id=user.id,
+            effective_premium=has_premium_access(user),
+            admin_override=user.admin_premium_override,
+            admin_expires_at=user.admin_premium_expires_at
         )
     except Exception as e:
-        logger.error(f"Error granting premium access: {str(e)}", exc_info=True)
+        logger.error(f"Error granting admin premium access: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to grant premium access"
         )
 
 
-@router.post("/users/{user_id}/revoke-premium", response_model=dict)
+@router.post("/users/{user_id}/revoke-premium", response_model=AdminPremiumResponse)
 async def revoke_premium_access(
     user_id: str,
     admin_user: User = Depends(require_admin_role),
     db: Session = Depends(get_db)
 ):
     """
-    Revoke premium access from a user.
+    Revoke admin premium override from a user.
     
     Requires ADMIN role and ENABLE_ADMIN=true.
     
-    Sets:
-    - subscription_plan = "FREE"
-    - subscription_status = "INACTIVE"
-    - subscription_expires_at = NULL
+    IMPORTANT: Cannot modify users with Stripe subscriptions.
+    Only clears admin_premium_override fields, does NOT touch:
+    - subscription_plan
+    - subscription_status
+    - subscription_expires_at
+    - stripe_customer_id
     
     Args:
         user_id: ID of the user to revoke premium access from
@@ -321,12 +378,11 @@ async def revoke_premium_access(
         db: Database session
         
     Returns:
-        Updated user information
+        AdminPremiumResponse with premium status
         
     Raises:
-        HTTPException: 404 if user not found
+        HTTPException: 404 if user not found, 400 if user has Stripe subscription
     """
-    from app.modules.subscriptions.services import revoke_premium_access
     
     # Find user
     user = db.query(User).filter(User.id == user_id).first()
@@ -336,42 +392,51 @@ async def revoke_premium_access(
             detail=f"User with id {user_id} not found"
         )
     
-    # Revoke premium access
+    # SECURITY: Reject if user has Stripe subscription
+    if user.stripe_customer_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Stripe subscriptions cannot be modified by admin"
+        )
+    
+    # Revoke admin premium override
     try:
-        updated_user = revoke_premium_access(db, user)
+        user.admin_premium_override = False
+        user.admin_premium_expires_at = None
+        user.updated_at = datetime.now(timezone.utc)
+        
+        db.commit()
+        db.refresh(user)
         
         # Log admin action
         try:
             from app.modules.admin_activity.services import log_activity
             log_activity(
                 db=db,
-                user=updated_user,
-                action="REVOKE_PREMIUM",
+                user=user,
+                action="REVOKE_ADMIN_PREMIUM",
                 resource=f"user:{user_id}",
                 metadata={
-                    "revoked_by": admin_user.email,
-                    "previous_plan": user.subscription_plan,
-                    "previous_status": user.subscription_status
+                    "revoked_by": admin_user.email
                 }
             )
         except Exception as e:
             logger.warning(f"Failed to log admin activity: {e}")
         
-        return {
-            "id": updated_user.id,
-            "email": updated_user.email,
-            "full_name": updated_user.full_name,
-            "subscription_plan": updated_user.subscription_plan,
-            "subscription_status": updated_user.subscription_status,
-            "subscription_expires_at": None,
-            "updated_at": updated_user.updated_at.isoformat()
-        }
+        # Return response
+        return AdminPremiumResponse(
+            user_id=user.id,
+            effective_premium=has_premium_access(user),
+            admin_override=user.admin_premium_override,
+            admin_expires_at=user.admin_premium_expires_at
+        )
     except Exception as e:
-        logger.error(f"Error revoking premium access: {str(e)}", exc_info=True)
+        logger.error(f"Error revoking admin premium access: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to revoke premium access"
         )
+
 
 
 

@@ -1,7 +1,8 @@
 """Subscription management schemas"""
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional
 from datetime import datetime
+from uuid import UUID
 
 
 class GrantPremiumRequest(BaseModel):
@@ -29,6 +30,25 @@ class SubscriptionUpdateResponse(BaseModel):
     
     class Config:
         from_attributes = True
+
+
+class AdminGrantPremiumRequest(BaseModel):
+    """Schema for admin granting premium access"""
+    expires_at: Optional[datetime] = Field(
+        default=None,
+        description="Optional expiration datetime (ISO format). If omitted, grants indefinitely."
+    )
+
+
+class AdminPremiumResponse(BaseModel):
+    """Schema for admin premium management response"""
+    model_config = ConfigDict(from_attributes=True)
+    
+    user_id: str
+    effective_premium: bool
+    admin_override: bool
+    admin_expires_at: Optional[datetime] = None
+
 
 
 

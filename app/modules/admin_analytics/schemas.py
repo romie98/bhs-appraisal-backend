@@ -1,5 +1,5 @@
 """Admin analytics schemas"""
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import Optional, Dict, Any, List
 from datetime import datetime
 
@@ -46,6 +46,23 @@ class RecentActivityItem(BaseModel):
 class RecentActivityResponse(BaseModel):
     """Recent activity logs response"""
     activities: list[RecentActivityItem]
+
+
+class AdminUserListItem(BaseModel):
+    """User information for admin user list"""
+    model_config = ConfigDict(from_attributes=True)
+    
+    id: str
+    full_name: str
+    email: str
+    role: str
+    subscription_plan: str
+    subscription_status: str
+    stripe_customer_id: Optional[str] = None
+    admin_premium_override: bool
+    admin_premium_expires_at: Optional[datetime] = None
+    created_at: datetime
+
 
 
 
