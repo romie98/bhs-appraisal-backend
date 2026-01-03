@@ -25,7 +25,7 @@ class LessonPlanUpdate(BaseModel):
 class LessonPlanResponse(LessonPlanBase):
     """Schema for lesson plan response"""
     id: UUID
-    teacher_id: str
+    teacher_id: UUID
     file_path: Optional[str] = None
     created_at: datetime
     updated_at: datetime

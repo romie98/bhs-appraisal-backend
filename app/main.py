@@ -8,6 +8,7 @@ from fastapi import FastAPI, Depends, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
+from contextlib import asynccontextmanager
 
 from app.core.database import Base, engine, get_db
 
@@ -37,10 +38,29 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # --------------------------------------------------
-# Migrations: Run manually via alembic CLI, not on startup
+# Startup migration handler (staging only)
 # --------------------------------------------------
-# Migrations should be run manually using: python -m alembic upgrade head
-# Automatic migrations on startup are disabled to prevent issues
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Run migrations on startup for staging environment
+    env = os.getenv("ENV", "").lower()
+    if env == "staging" or os.getenv("RUN_MIGRATIONS_ON_STARTUP", "").lower() == "true":
+        try:
+            from alembic import command
+            from alembic.config import Config
+            
+            logger.info("Running Alembic migrations on startup (staging)...")
+            alembic_cfg = Config("alembic.ini")
+            command.upgrade(alembic_cfg, "head")
+            logger.info("Migrations completed successfully.")
+        except Exception as e:
+            logger.error(f"Migration failed on startup: {e}", exc_info=True)
+            # Don't crash the app - log the error and continue
+    
+    yield  # App startup complete
+    
+    # Shutdown logic (if needed)
+    pass
 
 # --------------------------------------------------
 # Create FastAPI app FIRST
@@ -49,6 +69,7 @@ app = FastAPI(
     title="Mark Book & Register API",
     description="API for managing students, attendance register, and assessments",
     version="1.0.0",
+    lifespan=lifespan
 )
 
 @app.options("/{path:path}")
