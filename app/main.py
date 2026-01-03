@@ -77,23 +77,15 @@ async def global_options_handler(path: str):
     return Response(status_code=200)
 
 # --------------------------------------------------
-# CORS (Environment-driven, safe)
+# CORS
 # --------------------------------------------------
-origins = [
-    "http://localhost:3000",
-    "http://localhost:5173",
-]
-
-# Allow multiple frontend URLs safely
-frontend_urls = os.getenv("FRONTEND_URLS")
-if frontend_urls:
-    origins.extend([url.strip() for url in frontend_urls.split(",")])
-
-print("CORS ALLOWED ORIGINS:", origins)
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=[
+        "https://www.mytportfolio.com",
+        "https://mytportfolio-staging.vercel.app",
+        "http://localhost:5173",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
