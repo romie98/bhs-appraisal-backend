@@ -61,12 +61,20 @@ def upgrade() -> None:
         op.create_index(op.f('ix_user_activity_logs_id'), 'user_activity_logs', ['id'], unique=False)
         op.create_index(op.f('ix_user_activity_logs_user_id'), 'user_activity_logs', ['user_id'], unique=False)
     
-    # Add is_homeroom column with default False for SQLite compatibility
-    # Check if column already exists
+    # Add is_homeroom column with default False
+    # Check if column already exists (works for both SQLite and PostgreSQL)
     if 'classes' in existing_tables:
         existing_columns = [col['name'] for col in inspector.get_columns('classes')]
         if 'is_homeroom' not in existing_columns:
-            op.add_column('classes', sa.Column('is_homeroom', sa.Boolean(), nullable=False, server_default='0'))
+            # Use dialect-appropriate default
+            dialect_name = conn.dialect.name
+            if dialect_name == 'postgresql':
+                # PostgreSQL uses 'false' for boolean
+                default_value = sa.text('false')
+            else:
+                # SQLite uses '0' for boolean (stored as INTEGER)
+                default_value = '0'
+            op.add_column('classes', sa.Column('is_homeroom', sa.Boolean(), nullable=False, server_default=default_value))
     # Note: SQLite doesn't support ALTER COLUMN for type changes
     # The users.role and users.admin_premium_override columns work fine as-is
     # ### end Alembic commands ###
