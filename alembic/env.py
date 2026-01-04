@@ -13,7 +13,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 from app.core.database import Base
 from app.core.config import settings
 from app.modules.students.models import Student
-from app.modules.register.models import RegisterRecord
+from app.modules.register.models import RegisterRecord, HomeroomRegister
 from app.modules.assessments.models import Assessment, AssessmentScore
 from app.modules.classes.models import Class, class_students
 from app.modules.logbook.models import LogEntry

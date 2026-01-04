@@ -56,6 +56,7 @@ async def create_class(
         id=db_class.id,
         name=db_class.name,
         academic_year=db_class.academic_year,
+        is_homeroom=db_class.is_homeroom,
         created_at=db_class.created_at,
         student_count=student_count
     )
@@ -79,6 +80,7 @@ async def list_classes(
             id=cls.id,
             name=cls.name,
             academic_year=cls.academic_year,
+            is_homeroom=cls.is_homeroom,
             created_at=cls.created_at,
             student_count=student_count
         ))
@@ -108,6 +110,45 @@ async def get_class(
         id=db_class.id,
         name=db_class.name,
         academic_year=db_class.academic_year,
+        is_homeroom=db_class.is_homeroom,
+        created_at=db_class.created_at,
+        student_count=student_count
+    )
+
+
+@router.put("/{id}", response_model=ClassResponse)
+async def update_class(
+    id: UUID,
+    class_update: ClassUpdate,
+    db: Session = Depends(get_db)
+):
+    """Update a class"""
+    db_class = db.query(Class).filter(Class.id == str(id)).first()
+    
+    if not db_class:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Class not found"
+        )
+    
+    # Update only provided fields
+    update_data = class_update.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(db_class, field, value)
+    
+    db.commit()
+    db.refresh(db_class)
+    
+    # Get student count
+    student_count = db.query(func.count(class_students.c.student_id)).filter(
+        class_students.c.class_id == db_class.id
+    ).scalar() or 0
+    
+    return ClassResponse(
+        id=db_class.id,
+        name=db_class.name,
+        academic_year=db_class.academic_year,
+        is_homeroom=db_class.is_homeroom,
         created_at=db_class.created_at,
         student_count=student_count
     )

@@ -20,11 +20,13 @@ class ClassUpdate(BaseModel):
     """Schema for updating a class"""
     name: Optional[str] = Field(None, min_length=1, max_length=200)
     academic_year: Optional[str] = Field(None, min_length=1, max_length=50)
+    is_homeroom: Optional[bool] = Field(None, description="Mark class as homeroom")
 
 
 class ClassResponse(ClassBase):
     """Schema for class response"""
     id: UUID
+    is_homeroom: bool = False
     created_at: datetime
     student_count: Optional[int] = 0
     
