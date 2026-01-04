@@ -21,7 +21,7 @@ from app.modules.classes.schemas import (
 router = APIRouter()
 
 
-@router.post("/", response_model=ClassResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=ClassResponse, status_code=status.HTTP_201_CREATED)
 async def create_class(
     class_data: ClassCreate,
     db: Session = Depends(get_db)
@@ -59,7 +59,7 @@ async def create_class(
     return response
 
 
-@router.get("/", response_model=List[ClassResponse])
+@router.get("", response_model=List[ClassResponse])
 async def list_classes(
     db: Session = Depends(get_db)
 ):
