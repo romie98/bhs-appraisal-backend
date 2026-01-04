@@ -25,7 +25,7 @@ from app.modules.subscriptions.guards import has_premium_access
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(tags=["Admin"])
+router = APIRouter(prefix="/admin", tags=["Admin"])
 
 
 @router.get("/stats", response_model=AdminStatsResponse)

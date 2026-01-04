@@ -128,7 +128,7 @@ app.include_router(subscriptions_router, prefix="/subscriptions", tags=["Subscri
 # --------------------------------------------------
 if os.getenv("ENABLE_ADMIN", "false").lower() == "true":
     from app.modules.admin_analytics.routers import router as admin_analytics_router
-    app.include_router(admin_analytics_router, prefix="/admin", tags=["Admin"])
+    app.include_router(admin_analytics_router)
 
 # --------------------------------------------------
 # Static uploads
