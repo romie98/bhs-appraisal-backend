@@ -10,7 +10,6 @@ from app.modules.auth.models import User
 from app.modules.admin_analytics.models import UserActivityLog
 from app.modules.admin_analytics.dependencies import require_admin_role
 from app.modules.admin_analytics.services import get_system_stats, get_system_health
-from app.core.features import require_feature
 from app.modules.admin_analytics.schemas import (
     AdminStatsResponse,
     AdminHealthResponse,
@@ -31,12 +30,11 @@ router = APIRouter(prefix="/admin", tags=["Admin"])
 @router.get("/stats", response_model=AdminStatsResponse)
 async def get_admin_stats(
     admin_user: User = Depends(require_admin_role),
-    _: User = Depends(require_feature("ADVANCED_ANALYTICS")),
     db: Session = Depends(get_db)
 ):
     """
     Get system-wide statistics for admin dashboard.
-    Requires ADMIN role, ENABLE_ADMIN=true, and ADVANCED_ANALYTICS feature (PRO or SCHOOL plan).
+    Requires ADMIN role and ENABLE_ADMIN=true.
     """
     try:
         stats = get_system_stats(db)
@@ -52,12 +50,11 @@ async def get_admin_stats(
 @router.get("/health", response_model=AdminHealthResponse)
 async def get_admin_health(
     admin_user: User = Depends(require_admin_role),
-    _: User = Depends(require_feature("ADVANCED_ANALYTICS")),
     db: Session = Depends(get_db)
 ):
     """
     Get system health status.
-    Requires ADMIN role, ENABLE_ADMIN=true, and ADVANCED_ANALYTICS feature (PRO or SCHOOL plan).
+    Requires ADMIN role and ENABLE_ADMIN=true.
     """
     try:
         health = get_system_health(db)
@@ -73,12 +70,11 @@ async def get_admin_health(
 @router.get("/activity", response_model=AdminActivityResponse)
 async def get_admin_activity(
     admin_user: User = Depends(require_admin_role),
-    _: User = Depends(require_feature("ADVANCED_ANALYTICS")),
     db: Session = Depends(get_db)
 ):
     """
     Get activity events from admin activity feed.
-    Requires ADMIN role, ENABLE_ADMIN=true, and ADVANCED_ANALYTICS feature (PRO or SCHOOL plan).
+    Requires ADMIN role and ENABLE_ADMIN=true.
     """
     try:
         from app.modules.admin_activity.services import get_recent_activity
@@ -109,12 +105,11 @@ async def get_admin_activity(
 @router.get("/analytics/summary", response_model=ActivitySummaryResponse)
 async def get_activity_summary(
     admin_user: User = Depends(require_admin_role),
-    _: User = Depends(require_feature("ADVANCED_ANALYTICS")),
     db: Session = Depends(get_db)
 ):
     """
     Get summary statistics for admin analytics (legacy endpoint).
-    Read-only endpoint, requires admin access, ENABLE_ADMIN=true, and ADVANCED_ANALYTICS feature (PRO or SCHOOL plan).
+    Read-only endpoint, requires admin access and ENABLE_ADMIN=true.
     """
     try:
         # Total users
@@ -156,12 +151,11 @@ async def get_activity_summary(
 @router.get("/analytics/recent-activity", response_model=RecentActivityResponse)
 async def get_recent_activity(
     admin_user: User = Depends(require_admin_role),
-    _: User = Depends(require_feature("ADVANCED_ANALYTICS")),
     db: Session = Depends(get_db)
 ):
     """
     Get recent activity logs (last 50).
-    Read-only endpoint, requires admin access, ENABLE_ADMIN=true, and ADVANCED_ANALYTICS feature (PRO or SCHOOL plan).
+    Read-only endpoint, requires admin access and ENABLE_ADMIN=true.
     Returns user email, action_type, entity_type, and created_at.
     """
     try:
