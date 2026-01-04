@@ -353,7 +353,7 @@ async def bulk_add_students_to_class(
         )
 
 
-@router.delete("/{id}/students/{student_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{id}/students/{student_id}", status_code=status.HTTP_200_OK)
 async def remove_student_from_class(
     id: UUID,
     student_id: UUID,
@@ -363,7 +363,9 @@ async def remove_student_from_class(
     Remove a student from a class.
     
     This operation is idempotent - if the student is not in the class,
-    it returns 204 (success) because the desired state is already achieved.
+    it returns success because the desired state is already achieved.
+    
+    Returns 200 OK with a success message for better frontend compatibility.
     """
     try:
         logger.info(f"Remove student {student_id} from class {id}")
@@ -388,7 +390,7 @@ async def remove_student_from_class(
         if not existing:
             # Idempotent delete: student already not in class, return success
             logger.info(f"Student {student_id} is not in class {id} (idempotent delete)")
-            return None
+            return {"success": True, "message": "Student is not in this class", "removed": False}
         
         # Remove student from class
         db.execute(
@@ -399,7 +401,7 @@ async def remove_student_from_class(
         )
         db.commit()
         logger.info(f"Successfully removed student {student_id} from class {id}")
-        return None
+        return {"success": True, "message": "Student removed from class successfully", "removed": True}
     
     except HTTPException:
         raise
