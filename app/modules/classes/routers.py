@@ -359,37 +359,55 @@ async def remove_student_from_class(
     student_id: UUID,
     db: Session = Depends(get_db)
 ):
-    """Remove a student from a class"""
-    db_class = db.query(Class).filter(Class.id == str(id)).first()
+    """
+    Remove a student from a class.
     
-    if not db_class:
+    This operation is idempotent - if the student is not in the class,
+    it returns 204 (success) because the desired state is already achieved.
+    """
+    try:
+        logger.info(f"Remove student {student_id} from class {id}")
+        
+        db_class = db.query(Class).filter(Class.id == str(id)).first()
+        
+        if not db_class:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Class not found"
+            )
+        
+        # Check if student is in class
+        from sqlalchemy import select
+        existing = db.execute(
+            select(class_students).where(
+                class_students.c.class_id == str(id),
+                class_students.c.student_id == str(student_id)
+            )
+        ).first()
+        
+        if not existing:
+            # Idempotent delete: student already not in class, return success
+            logger.info(f"Student {student_id} is not in class {id} (idempotent delete)")
+            return None
+        
+        # Remove student from class
+        db.execute(
+            class_students.delete().where(
+                class_students.c.class_id == str(id),
+                class_students.c.student_id == str(student_id)
+            )
+        )
+        db.commit()
+        logger.info(f"Successfully removed student {student_id} from class {id}")
+        return None
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error removing student from class: {str(e)}", exc_info=True)
+        db.rollback()
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Class not found"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to remove student from class: {str(e)}"
         )
-    
-    # Check if student is in class
-    from sqlalchemy import select
-    existing = db.execute(
-        select(class_students).where(
-            class_students.c.class_id == str(id),
-            class_students.c.student_id == str(student_id)
-        )
-    ).first()
-    
-    if not existing:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Student is not in this class"
-        )
-    
-    # Remove student from class
-    db.execute(
-        class_students.delete().where(
-            class_students.c.class_id == str(id),
-            class_students.c.student_id == str(student_id)
-        )
-    )
-    db.commit()
-    return None
 
