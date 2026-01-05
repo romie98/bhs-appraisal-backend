@@ -62,3 +62,30 @@ class RegisterSummaryResponse(BaseModel):
     excused: int
     attendance_rate: float
 
+
+class HomeroomRegisterCreate(BaseModel):
+    """Schema for creating/updating a homeroom register"""
+    classroom_id: UUID
+    date: date
+    morning_boys: int = Field(ge=0, description="Number of boys present in morning")
+    morning_girls: int = Field(ge=0, description="Number of girls present in morning")
+    afternoon_boys: int = Field(ge=0, description="Number of boys present in afternoon")
+    afternoon_girls: int = Field(ge=0, description="Number of girls present in afternoon")
+
+
+class HomeroomRegisterOut(BaseModel):
+    """Schema for homeroom register response"""
+    id: UUID
+    date: date
+    
+    morning_boys: int
+    morning_girls: int
+    morning_total: int
+    
+    afternoon_boys: int
+    afternoon_girls: int
+    afternoon_total: int
+    
+    class Config:
+        from_attributes = True
+

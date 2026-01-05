@@ -8,21 +8,23 @@ from datetime import date, timedelta
 from app.core.database import get_db
 from app.modules.auth.models import User
 from app.services.auth_dependency import get_current_user
-from app.modules.register.models import RegisterRecord, RegisterStatus
+from app.modules.register.models import RegisterRecord, RegisterStatus, HomeroomRegister
 from app.modules.students.models import Student
-from app.modules.classes.models import class_students
+from app.modules.classes.models import class_students, Class
 from app.modules.register.schemas import (
     RegisterRecordCreate,
     RegisterRecordUpdate,
     RegisterRecordResponse,
     BulkRegisterCreate,
-    RegisterSummaryResponse
+    RegisterSummaryResponse,
+    HomeroomRegisterCreate,
+    HomeroomRegisterOut
 )
 
 router = APIRouter()
 
 
-@router.get("/", response_model=List[RegisterRecordResponse])
+@router.get("", response_model=List[RegisterRecordResponse])
 async def get_register_records(
     current_user: User = Depends(get_current_user),
     grade: Optional[str] = Query(None, description="Filter by grade (deprecated, use class_id)"),
@@ -62,7 +64,7 @@ async def get_register_records(
     return records
 
 
-@router.post("/", response_model=RegisterRecordResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=RegisterRecordResponse, status_code=status.HTTP_201_CREATED)
 async def create_register_record(
     record: RegisterRecordCreate,
     db: Session = Depends(get_db)
@@ -314,3 +316,107 @@ async def get_monthly_summary(
     
     return sorted(summaries, key=lambda x: x.date)
 
+
+# --------------------------------------------------
+# Homeroom Register Endpoints
+# --------------------------------------------------
+
+def serialize_homeroom_register(r: HomeroomRegister) -> dict:
+    """Serialize homeroom register with computed totals"""
+    return {
+        "id": r.id,
+        "date": r.date,
+        "morning_boys": r.morning_boys,
+        "morning_girls": r.morning_girls,
+        "morning_total": r.morning_boys + r.morning_girls,
+        "afternoon_boys": r.afternoon_boys,
+        "afternoon_girls": r.afternoon_girls,
+        "afternoon_total": r.afternoon_boys + r.afternoon_girls,
+    }
+
+
+@router.post("/homeroom", response_model=HomeroomRegisterOut, status_code=status.HTTP_200_OK)
+async def create_or_update_homeroom(
+    payload: HomeroomRegisterCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Create or update a homeroom register entry.
+    
+    Ensures the classroom is marked as homeroom.
+    If a register already exists for the date, it will be updated.
+    """
+    # Ensure classroom exists and is marked as homeroom
+    classroom = db.query(Class).filter(
+        Class.id == str(payload.classroom_id),
+        Class.is_homeroom == True
+    ).first()
+    
+    if not classroom:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Classroom is not marked as a homeroom"
+        )
+    
+    # Check if register already exists for this date
+    register = db.query(HomeroomRegister).filter(
+        HomeroomRegister.classroom_id == str(payload.classroom_id),
+        HomeroomRegister.date == payload.date
+    ).first()
+    
+    if not register:
+        # Create new register
+        register = HomeroomRegister(
+            teacher_id=current_user.id,
+            classroom_id=str(payload.classroom_id),
+            date=payload.date,
+            morning_boys=payload.morning_boys,
+            morning_girls=payload.morning_girls,
+            afternoon_boys=payload.afternoon_boys,
+            afternoon_girls=payload.afternoon_girls,
+        )
+        db.add(register)
+    else:
+        # Update existing register
+        register.morning_boys = payload.morning_boys
+        register.morning_girls = payload.morning_girls
+        register.afternoon_boys = payload.afternoon_boys
+        register.afternoon_girls = payload.afternoon_girls
+    
+    db.commit()
+    db.refresh(register)
+    
+    return serialize_homeroom_register(register)
+
+
+@router.get("/homeroom/{classroom_id}", response_model=List[HomeroomRegisterOut])
+async def list_homeroom_registers(
+    classroom_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    List all homeroom register entries for a specific classroom.
+    
+    Only returns registers for classrooms that are marked as homeroom.
+    """
+    # Verify classroom exists and is homeroom
+    classroom = db.query(Class).filter(
+        Class.id == str(classroom_id),
+        Class.is_homeroom == True
+    ).first()
+    
+    if not classroom:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Homeroom classroom not found"
+        )
+    
+    # Get all registers for this classroom
+    registers = db.query(HomeroomRegister).filter(
+        HomeroomRegister.classroom_id == str(classroom_id),
+        HomeroomRegister.teacher_id == current_user.id
+    ).order_by(HomeroomRegister.date.desc()).all()
+    
+    return [serialize_homeroom_register(r) for r in registers]
