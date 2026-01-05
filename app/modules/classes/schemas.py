@@ -13,7 +13,7 @@ class ClassBase(BaseModel):
 
 class ClassCreate(ClassBase):
     """Schema for creating a class"""
-    pass
+    is_homeroom: bool = Field(default=False, description="Mark class as homeroom")
 
 
 class ClassUpdate(BaseModel):

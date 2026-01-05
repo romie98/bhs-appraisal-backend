@@ -1,9 +1,9 @@
 """Classes API router"""
 import logging
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func, select
-from typing import List
+from typing import List, Optional
 from uuid import UUID
 from app.core.database import get_db
 from app.modules.auth.models import User
@@ -65,10 +65,22 @@ async def create_class(
 
 @router.get("", response_model=List[ClassResponse])
 async def list_classes(
+    is_homeroom: Optional[bool] = None,
     db: Session = Depends(get_db)
 ):
-    """List all classes"""
-    classes = db.query(Class).order_by(Class.created_at.desc()).all()
+    """
+    List all classes, optionally filtered by is_homeroom.
+    
+    Query parameters:
+    - is_homeroom: Optional boolean to filter by homeroom status
+    """
+    query = db.query(Class)
+    
+    # Filter by is_homeroom if provided
+    if is_homeroom is not None:
+        query = query.filter(Class.is_homeroom == is_homeroom)
+    
+    classes = query.order_by(Class.created_at.desc()).all()
     
     result = []
     for cls in classes:
@@ -123,21 +135,49 @@ async def update_class(
     db: Session = Depends(get_db)
 ):
     """Update a class"""
-    db_class = db.query(Class).filter(Class.id == str(id)).first()
+    try:
+        logger.info(f"Update class request for {id}: {class_update.model_dump(exclude_unset=True)}")
+        
+        db_class = db.query(Class).filter(Class.id == str(id)).first()
+        
+        if not db_class:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Class not found"
+            )
+        
+        # Update only provided fields
+        update_data = class_update.model_dump(exclude_unset=True)
+        logger.info(f"Updating class {id} with data: {update_data}")
+        
+        # Ensure boolean values are properly converted
+        if 'is_homeroom' in update_data:
+            # Convert to proper boolean (handle string "true"/"false" or 1/0)
+            is_homeroom_value = update_data['is_homeroom']
+            if isinstance(is_homeroom_value, str):
+                is_homeroom_value = is_homeroom_value.lower() in ('true', '1', 'yes')
+            elif isinstance(is_homeroom_value, int):
+                is_homeroom_value = bool(is_homeroom_value)
+            update_data['is_homeroom'] = bool(is_homeroom_value)
+            logger.info(f"Converted is_homeroom to boolean: {update_data['is_homeroom']}")
+        
+        for field, value in update_data.items():
+            setattr(db_class, field, value)
+        
+        db.commit()
+        db.refresh(db_class)
+        
+        logger.info(f"Class {id} updated successfully. is_homeroom is now: {db_class.is_homeroom}")
     
-    if not db_class:
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating class: {str(e)}", exc_info=True)
+        db.rollback()
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Class not found"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update class: {str(e)}"
         )
-    
-    # Update only provided fields
-    update_data = class_update.model_dump(exclude_unset=True)
-    for field, value in update_data.items():
-        setattr(db_class, field, value)
-    
-    db.commit()
-    db.refresh(db_class)
     
     # Get student count
     student_count = db.query(func.count(class_students.c.student_id)).filter(

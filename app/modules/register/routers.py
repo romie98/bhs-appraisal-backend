@@ -24,7 +24,7 @@ from app.modules.register.schemas import (
 router = APIRouter()
 
 
-@router.get("/", response_model=List[RegisterRecordResponse])
+@router.get("", response_model=List[RegisterRecordResponse])
 async def get_register_records(
     current_user: User = Depends(get_current_user),
     grade: Optional[str] = Query(None, description="Filter by grade (deprecated, use class_id)"),
@@ -64,7 +64,7 @@ async def get_register_records(
     return records
 
 
-@router.post("/", response_model=RegisterRecordResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=RegisterRecordResponse, status_code=status.HTTP_201_CREATED)
 async def create_register_record(
     record: RegisterRecordCreate,
     db: Session = Depends(get_db)
