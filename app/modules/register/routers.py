@@ -1,4 +1,5 @@
 """Register API router"""
+import logging
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_
@@ -21,6 +22,7 @@ from app.modules.register.schemas import (
     HomeroomRegisterOut
 )
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
@@ -335,6 +337,77 @@ def serialize_homeroom_register(r: HomeroomRegister) -> dict:
     }
 
 
+def validate_uuid_string(value, field_name: str) -> str:
+    """
+    Validate and normalize UUID string.
+    
+    Args:
+        value: UUID value (can be UUID object or string)
+        field_name: Name of the field for error messages
+        
+    Returns:
+        String representation of UUID
+        
+    Raises:
+        HTTPException: 500 if value is not a valid UUID
+    """
+    if isinstance(value, UUID):
+        uuid_str = str(value)
+    elif isinstance(value, str):
+        # Validate it's a valid UUID string
+        try:
+            UUID(value)
+            uuid_str = value
+        except (ValueError, AttributeError):
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Invalid {field_name} type: expected UUID, got {type(value).__name__}"
+            )
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Invalid {field_name} type: expected UUID, got {type(value).__name__}"
+        )
+    return uuid_str
+
+
+def get_homeroom_registers(
+    db: Session,
+    classroom_id: UUID,
+    teacher_id: str
+) -> List[HomeroomRegister]:
+    """
+    Shared helper function to get homeroom registers for a classroom and teacher.
+    
+    This function ensures consistent filtering logic between POST and GET endpoints.
+    Uses UUID string comparison ONLY - no implicit or hidden filters.
+    
+    Args:
+        db: Database session
+        classroom_id: UUID of the classroom (will be normalized to string)
+        teacher_id: String UUID of the teacher (will be validated)
+        
+    Returns:
+        List of HomeroomRegister records, ordered by date DESC (newest first)
+    """
+    # Normalize UUIDs to strings for consistent comparison
+    classroom_id_str = validate_uuid_string(classroom_id, "classroom_id")
+    teacher_id_str = validate_uuid_string(teacher_id, "teacher_id")
+    
+    # Query with explicit UUID string comparison (no implicit filters, no date filters)
+    registers = db.query(HomeroomRegister).filter(
+        HomeroomRegister.classroom_id == classroom_id_str,
+        HomeroomRegister.teacher_id == teacher_id_str
+    ).order_by(HomeroomRegister.date.desc()).all()
+    
+    logger.info(
+        f"get_homeroom_registers: classroom_id={classroom_id_str}, "
+        f"teacher_id={teacher_id_str}, found {len(registers)} records"
+    )
+    
+    return registers
+
+
 @router.post("/homeroom", response_model=HomeroomRegisterOut, status_code=status.HTTP_200_OK)
 async def create_or_update_homeroom(
     payload: HomeroomRegisterCreate,
@@ -347,47 +420,85 @@ async def create_or_update_homeroom(
     Ensures the classroom is marked as homeroom.
     If a register already exists for the date, it will be updated.
     """
-    # Ensure classroom exists and is marked as homeroom
-    classroom = db.query(Class).filter(
-        Class.id == str(payload.classroom_id),
-        Class.is_homeroom == True
-    ).first()
+    try:
+        # Validate and normalize UUIDs
+        teacher_id_str = validate_uuid_string(current_user.id, "teacher_id")
+        classroom_id_str = validate_uuid_string(payload.classroom_id, "classroom_id")
+        
+        # Ensure date is explicitly set (defensive - schema requires it, but validate)
+        if not payload.date:
+            register_date = date.today()
+            logger.warning(f"Date not provided in payload, using today: {register_date}")
+        else:
+            register_date = payload.date
+        
+        logger.info(
+            f"create_or_update_homeroom: teacher_id={teacher_id_str}, "
+            f"classroom_id={classroom_id_str}, date={register_date}"
+        )
+        
+        # Ensure classroom exists and is marked as homeroom
+        classroom = db.query(Class).filter(
+            Class.id == classroom_id_str,
+            Class.is_homeroom == True
+        ).first()
+        
+        if not classroom:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Classroom is not marked as a homeroom"
+            )
+        
+        # Check if register already exists for this date
+        register = db.query(HomeroomRegister).filter(
+            HomeroomRegister.classroom_id == classroom_id_str,
+            HomeroomRegister.date == register_date
+        ).first()
+        
+        if not register:
+            # Create new register - ALWAYS use validated UUID strings
+            register = HomeroomRegister(
+                teacher_id=teacher_id_str,
+                classroom_id=classroom_id_str,
+                date=register_date,
+                morning_boys=payload.morning_boys,
+                morning_girls=payload.morning_girls,
+                afternoon_boys=payload.afternoon_boys,
+                afternoon_girls=payload.afternoon_girls,
+            )
+            db.add(register)
+            logger.info(f"Created new homeroom register: id={register.id}")
+        else:
+            # Update existing register - ensure teacher_id is also updated for consistency
+            register.teacher_id = teacher_id_str  # Ensure teacher_id is always current
+            register.morning_boys = payload.morning_boys
+            register.morning_girls = payload.morning_girls
+            register.afternoon_boys = payload.afternoon_boys
+            register.afternoon_girls = payload.afternoon_girls
+            logger.info(f"Updated existing homeroom register: id={register.id}")
+        
+        db.commit()
+        db.refresh(register)
+        
+        # Log saved values for verification
+        logger.info(
+            f"Homeroom register saved: id={register.id}, "
+            f"teacher_id={register.teacher_id}, "
+            f"classroom_id={register.classroom_id}, "
+            f"date={register.date}"
+        )
+        
+        return serialize_homeroom_register(register)
     
-    if not classroom:
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in create_or_update_homeroom: {str(e)}", exc_info=True)
+        db.rollback()
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Classroom is not marked as a homeroom"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to save homeroom register: {str(e)}"
         )
-    
-    # Check if register already exists for this date
-    register = db.query(HomeroomRegister).filter(
-        HomeroomRegister.classroom_id == str(payload.classroom_id),
-        HomeroomRegister.date == payload.date
-    ).first()
-    
-    if not register:
-        # Create new register
-        register = HomeroomRegister(
-            teacher_id=current_user.id,
-            classroom_id=str(payload.classroom_id),
-            date=payload.date,
-            morning_boys=payload.morning_boys,
-            morning_girls=payload.morning_girls,
-            afternoon_boys=payload.afternoon_boys,
-            afternoon_girls=payload.afternoon_girls,
-        )
-        db.add(register)
-    else:
-        # Update existing register
-        register.morning_boys = payload.morning_boys
-        register.morning_girls = payload.morning_girls
-        register.afternoon_boys = payload.afternoon_boys
-        register.afternoon_girls = payload.afternoon_girls
-    
-    db.commit()
-    db.refresh(register)
-    
-    return serialize_homeroom_register(register)
 
 
 @router.get("/homeroom/{classroom_id}", response_model=List[HomeroomRegisterOut])
@@ -400,23 +511,46 @@ async def list_homeroom_registers(
     List all homeroom register entries for a specific classroom.
     
     Only returns registers for classrooms that are marked as homeroom.
+    No implicit date filters - returns all registers for the classroom.
     """
-    # Verify classroom exists and is homeroom
-    classroom = db.query(Class).filter(
-        Class.id == str(classroom_id),
-        Class.is_homeroom == True
-    ).first()
-    
-    if not classroom:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Homeroom classroom not found"
+    try:
+        # Validate and normalize UUIDs
+        teacher_id_str = validate_uuid_string(current_user.id, "teacher_id")
+        classroom_id_str = validate_uuid_string(classroom_id, "classroom_id")
+        
+        logger.info(
+            f"list_homeroom_registers: classroom_id={classroom_id_str}, "
+            f"teacher_id={teacher_id_str}"
         )
+        
+        # Verify classroom exists and is homeroom
+        classroom = db.query(Class).filter(
+            Class.id == classroom_id_str,
+            Class.is_homeroom == True
+        ).first()
+        
+        if not classroom:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Homeroom classroom not found"
+            )
+        
+        # Use shared helper function for consistent filtering
+        registers = get_homeroom_registers(db, classroom_id, teacher_id_str)
+        
+        logger.info(
+            f"list_homeroom_registers: classroom_id={classroom_id_str}, "
+            f"teacher_id={teacher_id_str}, returned {len(registers)} records"
+        )
+        
+        # Return empty list (200 OK) if no records exist
+        return [serialize_homeroom_register(r) for r in registers]
     
-    # Get all registers for this classroom
-    registers = db.query(HomeroomRegister).filter(
-        HomeroomRegister.classroom_id == str(classroom_id),
-        HomeroomRegister.teacher_id == current_user.id
-    ).order_by(HomeroomRegister.date.desc()).all()
-    
-    return [serialize_homeroom_register(r) for r in registers]
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in list_homeroom_registers: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve homeroom registers: {str(e)}"
+        )
