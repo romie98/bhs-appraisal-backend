@@ -1,5 +1,6 @@
 """Register models"""
 from sqlalchemy import Column, String, Date, ForeignKey, Text, Enum as SQLEnum, Integer, UniqueConstraint, DateTime
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 import uuid
@@ -37,7 +38,12 @@ class HomeroomRegister(Base):
     __tablename__ = "homeroom_registers"
     
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()), index=True)
-    teacher_id = Column(String(36), ForeignKey("users.id"), nullable=False, index=True)
+    teacher_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
     classroom_id = Column(String(36), ForeignKey("classes.id"), nullable=False, index=True)
     
     date = Column(Date, nullable=False, index=True)
@@ -53,6 +59,9 @@ class HomeroomRegister(Base):
     __table_args__ = (
         UniqueConstraint("classroom_id", "date", name="uq_homeroom_per_day"),
     )
+    
+    # Relationships
+    teacher = relationship("User", backref="homeroom_registers")
     
     def __repr__(self):
         return f"<HomeroomRegister(id={self.id}, classroom_id={self.classroom_id}, date={self.date})>"

@@ -92,9 +92,10 @@ app.add_middleware(
 )
 
 # --------------------------------------------------
-# Database
+# Database: migrations manage schema in production; create_all only for non-production
 # --------------------------------------------------
-Base.metadata.create_all(bind=engine)
+if os.getenv("ENV", "").lower() != "production":
+    Base.metadata.create_all(bind=engine)
 
 # --------------------------------------------------
 # Routers
