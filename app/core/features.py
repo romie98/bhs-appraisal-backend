@@ -3,6 +3,7 @@ from typing import Dict, List, Any
 from fastapi import Depends, HTTPException, status
 from app.modules.auth.models import User
 from app.modules.auth.constants import SUBSCRIPTION_PLAN_FREE
+from app.modules.subscriptions.guards import has_premium_access
 from app.services.auth_dependency import get_current_user
 
 
@@ -44,6 +45,9 @@ def has_feature(user: User, feature_key: str) -> bool:
     - FREE: Limited access, default for all users
     - PREMIUM: Any plan that is not FREE (PRO, SCHOOL, etc.)
     
+    Admins (role == "ADMIN") and users with premium access (Stripe or
+    admin_premium_override) are granted access to premium features.
+    
     Args:
         user: User object with subscription_plan attribute
         feature_key: Key from FEATURE_REGISTRY
@@ -60,6 +64,13 @@ def has_feature(user: User, feature_key: str) -> bool:
     
     feature = FEATURE_REGISTRY[feature_key]
     allowed_plans = feature.get("allowed_plans", [])
+    
+    # Admin bypass: admins can access all premium features
+    if getattr(user, "role", None) == "ADMIN":
+        return True
+    # Users with premium access (Stripe or admin_premium_override) get premium features
+    if has_premium_access(user):
+        return PLAN_PREMIUM in allowed_plans
     
     # Map user's subscription_plan to plan category
     user_plan_category = PLAN_FREE if user.subscription_plan == SUBSCRIPTION_PLAN_FREE else PLAN_PREMIUM
